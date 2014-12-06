@@ -30,15 +30,13 @@ class WsEvent {
     if(data.length > 1) {
       Map<String, String> attr = data[DATA_ATTR_IDX];
       if(data.length > DATA_CID_IDX && data[DATA_CID_IDX] != null) this.connection_id = data[DATA_CID_IDX];
-      this.id = _fetchValue(attr, 'id', int.parse) || (((1+_rnd.nextInt(99999))*0x10000)|0);
+      this.id = _fetchValue(attr, 'id');
+      if(this.id == null) this.id = (((1+_rnd.nextInt(99999))*0x10000)|0);
       this.channel = _fetchValue(attr, 'channel');
       this.data = _fetchValue(attr, 'data');
       this.token = _fetchValue(attr, 'token');
-      String suc = _fetchValue(attr, 'success');
-      if(suc != null) {
-        this.success = (suc.toLowerCase() == 'true' ? true : false);
-        if(this.success) this.result = true;
-      }
+      this.success = _fetchValue(attr, 'success');
+      if(this.success != null && this.success) this.result = true;
     }
   }
 
@@ -77,8 +75,8 @@ class WsEvent {
 
   emitResponse(WsEvent e) {
     if(e.success)
-      onSuccess(e.result);
+      onSuccess(e);
     else
-      onFailure(e.result);
+      onFailure(e);
   }
 }

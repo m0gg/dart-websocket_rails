@@ -59,7 +59,6 @@ class WebSocketRails {
   
   newMessage(List message) {
     for(List data in message) {
-      print(data);
       WsEvent e = new WsEvent(data);
       if(e.isResult()) {
         queue[e.id].emitResponse(e);
@@ -68,8 +67,10 @@ class WebSocketRails {
         dispatchChannel(e);
       } else if(e.isPing()) {
         pong();
+        print('received Ping: $data');
       } else {
         dispatch(e);
+        print('received unclassified: $data');
       }
       
       if(state == STATE_CONNECTING && e.name == WsEvent.NAME_CONN_EST) {

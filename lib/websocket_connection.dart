@@ -49,7 +49,6 @@ class WebSocketConnection {
   
   trigger(WsEvent e) {
     if(this.dispatcher.state == WebSocketRails.STATE_CONNECTED) {
-      print('websocket send event: ${e.serialize()}}');
       sendEvent(e);
     } else {
       this.message_queue.add(e);
