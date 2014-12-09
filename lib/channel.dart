@@ -24,6 +24,9 @@ class Channel {
     String e_name = (private ? SUBSCRBE_PRIVATE : SUBSCRBE);
     connection_id = dispatcher.connection.connection_id;
     WsEvent e = new WsEvent([e_name, { 'data': { 'channel': name }}, connection_id], onSuccess: onSuccess, onFailure: onFailure);
+    cbControllers = {};
+    cbStreams = {};
+    queue = [];
     dispatcher.triggerEvent(e);
   }
   
@@ -37,6 +40,10 @@ class Channel {
   
   
   bind(String name, Function cb) {
+    if(cbStreams[name] == null) {
+      cbControllers[name] = new StreamController.broadcast();
+      cbStreams[name] = cbControllers[name].stream;
+    }
     cbStreams[name].listen(cb);
   }
   
@@ -57,7 +64,7 @@ class Channel {
   dispatch(String e_name, dynamic e) {
     if(e_name == RAILS_TOKEN) {
       connection_id = dispatcher.connection.connection_id;
-      token = e.data['token'];
+      token = e['token'];
       flushQueue();
     } else {
       cbControllers[e_name].add(e);

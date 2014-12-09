@@ -38,6 +38,7 @@ class WsEvent {
       this.success = _fetchValue(attr, 'success');
       if(this.success != null && this.success) this.result = true;
     }
+    //log();
   }
 
   dynamic _fetchValue(Map hash, String key, [Function modifier]) {
@@ -73,10 +74,21 @@ class WsEvent {
     return JSON.encode([this.name, getAttributes()]);
   }
 
-  emitResponse(WsEvent e) {
-    if(e.success)
-      onSuccess(e);
-    else
-      onFailure(e);
+  log() {
+    print(JSON.encode([name, {
+        'id': this.id,
+        'channel': this.channel,
+        'data': this.data,
+        'token': this.token,
+        'success': success,
+        'result': result
+    }, connection_id]));
   }
+
+emitResponse(WsEvent e) {
+  if(e.success)
+    onSuccess(e);
+  else
+    onFailure(e);
+}
 }

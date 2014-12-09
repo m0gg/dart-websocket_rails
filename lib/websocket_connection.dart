@@ -57,7 +57,6 @@ class WebSocketConnection {
   
   sendEvent(WsEvent e) {
     if(this.connection_id != null) e.connection_id = this.connection_id;
-    print("sending: ${e.serialize()}");
     ws.sendString(e.serialize());
   }
   

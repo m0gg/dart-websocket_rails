@@ -31,6 +31,7 @@ class WebSocketRails {
     this.cbControllers = {};
     this.cbStreams = {};
     this.queue = {};
+    this.channels = {};
   }
   
   connect() {
@@ -52,7 +53,7 @@ class WebSocketRails {
       disconnect();
       connect();
       queue.forEach((int i, WsEvent e) {
-        if(e.connection_id == ocid && !e.isResult()) triggerEvent(e);
+        if(e != null && e.connection_id == ocid && !e.isResult()) triggerEvent(e);
       });
     }
   }
@@ -60,6 +61,7 @@ class WebSocketRails {
   newMessage(List message) {
     for(List data in message) {
       WsEvent e = new WsEvent(data);
+      //e.log();
       if(e.isResult()) {
         queue[e.id].emitResponse(e);
         queue[e.id] = null;
@@ -67,10 +69,9 @@ class WebSocketRails {
         dispatchChannel(e);
       } else if(e.isPing()) {
         pong();
-        print('received Ping: $data');
       } else {
         dispatch(e);
-        print('received unclassified: $data');
+        //print('received unclassified: $data');
       }
       
       if(state == STATE_CONNECTING && e.name == WsEvent.NAME_CONN_EST) {
@@ -95,9 +96,12 @@ class WebSocketRails {
     delete @callbacks[event_name]
   */
   
-  trigger(String name, Map<String, String> data, { Function onSuccess: null, Function onFailure: null }) {
-    WsEvent e = new WsEvent([name, data, connection.connection_id], onSuccess: onSuccess, onFailure: onFailure);
+  Future<String> trigger(String name, [Map<String, String> data = const { }]) {
+    Completer ac = new Completer();
+    WsEvent e = new WsEvent([name, data, connection.connection_id],
+                            onSuccess: (data) => ac.complete(data.data));
     triggerEvent(e);
+    return ac.future;
   }
   
   WsEvent triggerEvent(WsEvent e) {
@@ -125,7 +129,7 @@ class WebSocketRails {
       Channel c = new Channel(name, this, private, onSuccess: (WsEvent e) {
         cbControllers[name] = new StreamController<WsEvent>.broadcast();
         cbStreams[name] = cbControllers[name].stream;
-        onSuccess(e);
+        if(onSuccess != null) onSuccess(e);
       }, onFailure: onFailure);
       channels[name] = c;
       return c;
@@ -144,6 +148,7 @@ class WebSocketRails {
   dispatchChannel(WsEvent e) {
     if(channels[e.channel] != null) {
       channels[e.channel].dispatch(e.name, e.data);
+    } else {
     }
   }
   
