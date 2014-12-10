@@ -1,5 +1,5 @@
 part of websocket_rails;
-
+/*
 class WsEvent {
   String name;
   int id;
@@ -91,4 +91,4 @@ class WsEvent {
     else
       onFailure(e);
   }
-}
+}*/

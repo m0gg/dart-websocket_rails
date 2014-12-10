@@ -23,7 +23,7 @@ class Channel {
   Channel(this.name, this.dispatcher, this.private, { this.onSuccess: null, this.onFailure: null }) {
     String e_name = (private ? SUBSCRBE_PRIVATE : SUBSCRBE);
     connection_id = dispatcher.connection.connection_id;
-    WsEvent e = new WsEvent([e_name, { 'data': { 'channel': name }}, connection_id], onSuccess: onSuccess, onFailure: onFailure);
+    WsData e = new WsData(e_name, { 'data': { 'channel': name }}, connection_id);
     cbControllers = {};
     cbStreams = {};
     queue = [];
@@ -32,7 +32,7 @@ class Channel {
   
   destroy() {
     if(connection_id == dispatcher.connection.connection_id) {
-      WsEvent e = new WsEvent([UNSUBSCRIBE, { 'data': { 'channel': name }}, connection_id]);
+      WsData e = new WsData(UNSUBSCRIBE, { 'data': { 'channel': name }}, connection_id);
       dispatcher.triggerEvent(e);
     }
     //@_callbacks = {}
@@ -53,7 +53,7 @@ class Channel {
   */
   
   trigger(String eName, String message) {
-    WsEvent e = new WsEvent([eName, { 'channel': name, 'data': message, 'token': token }, connection_id]);
+    WsData e = new WsData(eName, { 'channel': name, 'data': message, 'token': token }, connection_id);
     if(token == null) {
       queue.add(e);
     } else {
@@ -61,13 +61,13 @@ class Channel {
     }
   }
   
-  dispatch(String eName, dynamic e) {
-    if(eName == RAILS_TOKEN) {
+  dispatch(dynamic e) {
+    if(e is WsToken) {
       connection_id = dispatcher.connection.connection_id;
-      token = e['token'];
+      token = e.token;
       flushQueue();
-    } else {
-      cbControllers[eName].add(e);
+    } else if(e is WsChannel) {
+      cbControllers[e.name].add(e);
     }
   }
   

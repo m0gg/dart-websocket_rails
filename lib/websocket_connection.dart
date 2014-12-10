@@ -4,12 +4,12 @@ class WebSocketConnection {
   String url;
   WebSocketRails dispatcher;
   WebSocket ws;
-  List<WsGEvent> message_queue;
+  List<WsEvent> message_queue;
   String connection_id;
   
   StreamController<CloseEvent> onClose;
-  StreamController<WsGEvent> onError;
-  StreamController<WsGEvent> onMessage;
+  StreamController<WsEvent> onError;
+  StreamController<WsEvent> onMessage;
   
   WebSocketConnection(this.url, this.dispatcher) {
     message_queue = new List();
@@ -29,17 +29,17 @@ class WebSocketConnection {
   }
   
   _onClose(CloseEvent e) {
-    if(dispatcher == null || dispatcher.connection != this) return;
+    /*if(dispatcher == null || dispatcher.connection != this) return;
     WsEvent event = new WsEvent([WsEvent.NAME_CONN_CLOSE, JSON.decode({ 'data': e })]);
     dispatcher.state = WebSocketRails.STATE_DISCONNECTED;
-    dispatcher.dispatch(event);
+    dispatcher.dispatch(event);*/
   }
   
   _onError(Event e) {
-    if(dispatcher == null || dispatcher.connection != this) return;
+    /*if(dispatcher == null || dispatcher.connection != this) return;
     WsEvent event = new WsEvent([WsEvent.NAME_CONN_ERROR, JSON.decode({ 'data': e })]);
     dispatcher.state = WebSocketRails.STATE_DISCONNECTED;
-    dispatcher.dispatch(event);
+    dispatcher.dispatch(event);*/
   }
   
   _onMessage(MessageEvent e) {
@@ -56,8 +56,8 @@ class WebSocketConnection {
   }
   
   sendEvent(WsEvent e) {
-    if(this.connection_id != null) e.connection_id = this.connection_id;
-    ws.sendString(e.serialize());
+    if(this.connection_id != null) e._connectionId = this.connection_id;
+    ws.sendString(e.toJson());
   }
   
   flushQueue() {
