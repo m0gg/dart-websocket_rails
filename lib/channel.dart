@@ -52,8 +52,8 @@ class Channel {
     delete @_callbacks[event_name]
   */
   
-  trigger(String e_name, String message) {
-    WsEvent e = new WsEvent([e_name, { 'channel': name, 'data': message, 'token': token }, connection_id]);
+  trigger(String eName, String message) {
+    WsEvent e = new WsEvent([eName, { 'channel': name, 'data': message, 'token': token }, connection_id]);
     if(token == null) {
       queue.add(e);
     } else {
@@ -61,13 +61,13 @@ class Channel {
     }
   }
   
-  dispatch(String e_name, dynamic e) {
-    if(e_name == RAILS_TOKEN) {
+  dispatch(String eName, dynamic e) {
+    if(eName == RAILS_TOKEN) {
       connection_id = dispatcher.connection.connection_id;
       token = e['token'];
       flushQueue();
     } else {
-      cbControllers[e_name].add(e);
+      cbControllers[eName].add(e);
     }
   }
   

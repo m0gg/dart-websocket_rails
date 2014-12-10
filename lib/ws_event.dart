@@ -61,7 +61,7 @@ class WsEvent {
     return this.name == NAME_RAILS_PING;
   }
 
-  List getAttributes() {
+  Map getAttributes() {
     return {
         'id': this.id,
         'channel': this.channel,
@@ -85,10 +85,10 @@ class WsEvent {
     }, connection_id]));
   }
 
-emitResponse(WsEvent e) {
-  if(e.success)
-    onSuccess(e);
-  else
-    onFailure(e);
-}
+  emitResponse(WsEvent e) {
+    if(e.success)
+      onSuccess(e);
+    else
+      onFailure(e);
+  }
 }
