@@ -4,12 +4,12 @@ class WebSocketConnection {
   String url;
   WebSocketRails dispatcher;
   WebSocket ws;
-  List<WsEvent> message_queue;
+  List<WsGEvent> message_queue;
   String connection_id;
   
   StreamController<CloseEvent> onClose;
-  StreamController<WsEvent> onError;
-  StreamController<WsEvent> onMessage;
+  StreamController<WsGEvent> onError;
+  StreamController<WsGEvent> onMessage;
   
   WebSocketConnection(this.url, this.dispatcher) {
     message_queue = new List();

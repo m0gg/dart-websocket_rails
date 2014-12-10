@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:math';
 
 part 'ws_event.dart';
+part 'ws_event_base.dart';
 part 'channel.dart';
 part 'websocket_connection.dart';
 
@@ -60,9 +61,9 @@ class WebSocketRails {
   
   newMessage(List message) {
     for(List data in message) {
-      WsEvent e = new WsEvent(data);
+      print(new WsEventBase.fromJson(data).toJson());
       //e.log();
-      if(e.isResult()) {
+      /*if(e.isResult()) {
         queue[e.id].emitResponse(e);
         queue[e.id] = null;
       } else if(e.isChannel()) {
@@ -76,7 +77,7 @@ class WebSocketRails {
       
       if(state == STATE_CONNECTING && e.name == WsEvent.NAME_CONN_EST) {
         connectionEstablished(e.data);
-      }
+      }*/
     }
   }
   
