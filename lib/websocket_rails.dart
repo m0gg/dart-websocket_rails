@@ -20,10 +20,10 @@ implements Bindable {
   String url;
   int state;
   WebSocketConnection connection;
-  Map<int, WsEvent> eventQueue = {};
-  Map<int, Completer> eventQueueCompleter = {};
-  Map<String, Channel> channels = {};
-  StreamController<WsEvent> onOpenController = new StreamController.broadcast();
+  Map<String, Channel> _channels = {};
+  Map<int, WsEvent> _eventQueue = {};
+  Map<int, Completer> _eventQueueCompleter = {};
+
 
   static const int STATE_DISCONNECTED = 0;
   static const int STATE_CONNECTING = 1;
@@ -31,7 +31,9 @@ implements Bindable {
 
   WebSocketRails(this.url);
 
-  Stream<WsEvent> get onOpen => onOpenController.stream;
+  //TODO: implement own streams
+  Stream get onOpen => connection.onOpen.stream;
+  Stream get onClose => connection.onClose.stream;
 
   connect() {
     if(connection == null) {
@@ -52,11 +54,11 @@ implements Bindable {
 
   reconnect() {
     if(connection != null) {
-      String ocid = connection.connectionId;
+      String oCid = connection.connectionId;
       disconnect();
       connect();
-      eventQueue.forEach((int i, WsEvent e) {
-        if(e != null && e.connectionId == ocid && e is ! WsResult) triggerEvent(e);
+      _eventQueue.forEach((int i, WsEvent e) {
+        if(e != null && e.connectionId == oCid && e is ! WsResult) triggerEvent(e);
       });
     }
   }
@@ -72,35 +74,33 @@ implements Bindable {
   }
 
   _emitResponse(WsData e) {
-    if(e.id != null && eventQueue[e.id] != null && eventQueueCompleter[e.id] != null) {
-      eventQueueCompleter[e.id].complete(e.data);
-      eventQueue[e.id] = null;
-      eventQueueCompleter[e.id] = null;
+    if(e.id != null && _eventQueue[e.id] != null && _eventQueueCompleter[e.id] != null) {
+      _eventQueueCompleter[e.id].complete(e.data);
+      _eventQueue[e.id] = null;
+      _eventQueueCompleter[e.id] = null;
     }
   }
 
   _connectionEstablished(WsConnectionEstablished e) {
     state = STATE_CONNECTED;
-    onOpenController.add(e);
+    reconnectChannels();
   }
 
   Future trigger(String name, [Map<String, String> data = const {}]) {
     Completer ac = new Completer();
     WsData e = new WsData(name, data, connection.connectionId);
-    eventQueueCompleter[e.id] = ac;
+    _eventQueueCompleter[e.id] = ac;
     triggerEvent(e);
     return ac.future;
   }
 
   WsEvent triggerEvent(WsData e) {
-    if(eventQueue[e.id] == null) {
-      eventQueue[e.id] = e;
-    }
-    if(connection != null) {
-      connection.trigger(e);
-    } else {
-      throw new Exception('Could not trigger Event. No existing connection!');
-    }
+    if(connection == null) throw new Exception('Could not trigger Event. No existing connection!');
+    if(_eventQueue[e.id] == null)
+      _eventQueue[e.id] = e;
+    else
+      throw new Exception('Could not queue Event, id already used');
+    connection.trigger(e);
     return e;
   }
 
@@ -108,54 +108,36 @@ implements Bindable {
     if(eventControllers[e.name] != null) eventControllers[e.name].add(e.data);
   }
 
-  Channel subscribe(String name) {
-    return _subscribe(name, false);
-  }
-
-  Channel subscribe_private(String name) {
-    return _subscribe(name, true);
-  }
-
+  //Channel related
+  Channel subscribe(String name) => _subscribe(name, false);
+  Channel subscribePrivate(String name) => _subscribe(name, true);
   Channel _subscribe(String name, bool private) {
-    if(channels[name] == null) {
-      Channel c = channels[name] = new Channel(name, private);
+    if(_channels[name] == null) {
+      Channel c = _channels[name] = new Channel(name, private);
       connection.trigger(c.getSubscriptionEvent());
       return c;
-    } else {
-      return channels[name];
     }
+    return _channels[name];
   }
 
-  unsubscribe(String name) {
-    if(channels[name] != null) {
-      channels[name].destroy();
-      channels.remove(name);
+  _unsubscribe(String name) {
+    if(_channels[name] != null) {
+      _channels[name].destroy();
+      _channels.remove(name);
     }
   }
 
   _dispatchChannel(WsChannel e) {
-    if(channels[e.channel] != null)
-      channels[e.channel].dispatch(e);
+    if(_channels[e.channel] != null)
+      _channels[e.channel].dispatch(e);
   }
+  //End Channel related
 
-  connectionStale() {
-    state != STATE_CONNECTED;
-  }
+  get connectionStale => state != STATE_CONNECTED;
 
   reconnectChannels() {
-    channels.forEach((String name, Channel c) {
-      //TODO:
-      /*
-            callbacks = channel._callbacks
-            channel.destroy()
-            delete @channels[name]
-            channel = if channel.is_private
-              @subscribe_private name
-            else
-              @subscribe name
-            channel._callbacks = callbacks
-            channel
-             */
+    _channels.forEach((String name, Channel c) {
+      connection.trigger(c.getSubscriptionEvent());
     });
   }
 }
