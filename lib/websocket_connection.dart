@@ -1,9 +1,12 @@
 part of websocket_rails;
 
-class WebSocketConnection {
+class WebSocketConnection
+extends Object
+with DefaultQueueable<WsEvent>
+implements Queueable<WsEvent> {
+
   String url;
   WebSocket ws;
-  List<WsEvent> queue;
   String connectionId;
 
   StreamController<CloseEvent> onClose;
@@ -72,28 +75,20 @@ class WebSocketConnection {
       onOpen.add(e);
   }
 
-  trigger(WsEvent e) {
-    if(this.ws.readyState == WebSocket.OPEN) {
-      //DEBUG: print('send Event: ${e.toJson()}');
-      sendEvent(e);
-    } else {
-      this.queue.add(e);
-    }
-  }
-
   sendEvent(WsEvent e) {
     if(this.connectionId != null) e.connectionId = this.connectionId;
     ws.sendString(e.toJson());
   }
 
-  flushQueue() {
-    for(WsEvent e in queue) {
-      trigger(e);
-    }
-    queue.clear();
-  }
-
   pong() {
     trigger(new WsPong(connectionId));
+  }
+
+  //alias Method, compat
+  trigger(WsEvent e) => queueAdd(e);
+
+  bool get queueIsBlocked => ws.readyState != WebSocket.OPEN;
+  queueOut(WsEvent e) {
+    sendEvent(e);
   }
 }
