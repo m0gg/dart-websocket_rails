@@ -135,7 +135,7 @@ class WsPong extends WsEvent {
   static const NAME = 'websocket_rails.pong';
 
   WsPong(String connectionId)
-  : super(null, connectionId);
+  : super({}, connectionId);
   
   String get name => NAME;
 }

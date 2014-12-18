@@ -18,16 +18,18 @@ class Channel {
   static const String RAILS_TOKEN = 'websocket_rails.channel_token';
   
   Channel(this.name, this.dispatcher, this.private, { Function onSuccess: null, Function onFailure: null }) {
-    connectionId = dispatcher.connection.connection_id;
-    WsSubscribe e = (private ? new WsSubscribePrivate(name, connectionId): new WsSubscribe(name, connectionId));
+    connectionId = dispatcher.connection.connectionId;
     cbControllers = {};
     cbStreams = {};
     queue = [];
-    dispatcher.triggerEvent(e);
+  }
+
+  WsSubscribe getSubscriptionEvent() {
+    return (private ? new WsSubscribePrivate(name, connectionId): new WsSubscribe(name, connectionId));
   }
   
   destroy() {
-    if(connectionId == dispatcher.connection.connection_id) {
+    if(connectionId == dispatcher.connection.connectionId) {
       WsUnsubscribe e = new WsUnsubscribe(name, connectionId);
       dispatcher.triggerEvent(e);
     }
@@ -56,7 +58,7 @@ class Channel {
   
   dispatch(WsEvent e) {
     if(e is WsToken) {
-      connectionId = dispatcher.connection.connection_id;
+      connectionId = dispatcher.connection.connectionId;
       token = e.token;
       flushQueue();
     } else if(e is WsChannel) {

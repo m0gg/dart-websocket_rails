@@ -15,7 +15,7 @@ class WebSocketRails {
   int state;
   WebSocketConnection connection;
   Map<int, WsEvent> queue;
-  Map<int, Completer> queueCompleters;
+  Map<int, Completer> queueCompleter;
   Map<String, Channel> channels;
 
   Map<String, StreamController<dynamic>> cbControllers;
@@ -34,13 +34,15 @@ class WebSocketRails {
     this.cbControllers = {};
     this.cbStreams = {};
     this.queue = {};
-    this.queueCompleters = {};
+    this.queueCompleter = {};
     this.channels = {};
   }
 
   connect() {
     state = STATE_CONNECTING;
-    connection = new WebSocketConnection(this.url, this);
+    connection = new WebSocketConnection(this.url)
+      ..onOpen.stream.listen((_) => connectionEstablished(_))
+      ..onEvent.stream.listen((_) => newMessage(_));
   }
 
   disconnect() {
@@ -53,7 +55,7 @@ class WebSocketRails {
 
   reconnect() {
     if(connection != null) {
-      String ocid = connection.connection_id;
+      String ocid = connection.connectionId;
       disconnect();
       connect();
       queue.forEach((int i, WsEvent e) {
@@ -62,32 +64,24 @@ class WebSocketRails {
     }
   }
 
-  newMessage(List message) {
-    for(List data in message) {
-      WsEvent e = new WsEvent.fromJson(data);
-      if(e is WsResult) {
-        _emitResponse(e);
-      } else if(e is WsChannel || e is WsToken) {
-        dispatchChannel(e);
-      } else if(e is WsPing) {
-        pong();
-      } else if(state == STATE_CONNECTING && e is WsConnectionEstablished) {
-        connectionEstablished(e);
-      }
+  newMessage(WsEvent e) {
+    if(e is WsResult) {
+      _emitResponse(e);
+    } else if(e is WsChannel || e is WsToken) {
+      dispatchChannel(e);
     }
   }
 
   _emitResponse(WsData e) {
-    if(e.id != null && queue[e.id] != null && queueCompleters[e.id] != null) {
-      queueCompleters[e.id].complete(e.data);
+    if(e.id != null && queue[e.id] != null && queueCompleter[e.id] != null) {
+      queueCompleter[e.id].complete(e.data);
       queue[e.id] = null;
-      queueCompleters[e.id] = null;
+      queueCompleter[e.id] = null;
     }
   }
 
   connectionEstablished(WsConnectionEstablished e) {
     state = STATE_CONNECTED;
-    connection.connection_id = e.connectionId;
     onOpenController.add(e);
   }
 
@@ -102,8 +96,8 @@ class WebSocketRails {
 
   Future trigger(String name, [Map<String, String> data = const { }]) {
     Completer ac = new Completer();
-    WsData e = new WsData(name, data, connection.connection_id);
-    queueCompleters[e.id] = ac;
+    WsData e = new WsData(name, data, connection.connectionId);
+    queueCompleter[e.id] = ac;
     triggerEvent(e);
     return ac.future;
   }
@@ -112,7 +106,11 @@ class WebSocketRails {
     if(queue[e.id] == null) {
       queue[e.id] = e;
     }
-    if(connection != null) connection.trigger(e);
+    if(connection != null) {
+      connection.trigger(e);
+    } else {
+      throw new Exception('Could not trigger Event. No existing connection!');
+    }
     return e;
   }
 
@@ -131,11 +129,11 @@ class WebSocketRails {
   Channel _subscribe(String name, bool private, { Function onSuccess: null, Function onFailure: null }) {
     if(channels[name] == null) {
       Channel c = new Channel(name, this, private, onSuccess: (WsEvent e) {
-        cbControllers[name] = new StreamController<WsEvent>.broadcast();
+        cbControllers[name] = new StreamController.broadcast();
         cbStreams[name] = cbControllers[name].stream;
-        if(onSuccess != null) onSuccess(e);
       }, onFailure: onFailure);
       channels[name] = c;
+      connection.trigger(c.getSubscriptionEvent());
       return c;
     } else {
       return channels[name];
@@ -155,10 +153,6 @@ class WebSocketRails {
     } else {
       //TODO:
     }
-  }
-
-  pong() {
-    connection.trigger(new WsPong(connection.connection_id));
   }
 
   connectionStale() {
