@@ -112,11 +112,9 @@ implements Bindable {
   Channel subscribe(String name) => _subscribe(name, false);
   Channel subscribePrivate(String name) => _subscribe(name, true);
   Channel _subscribe(String name, bool private) {
-    if(_channels[name] == null) {
-      Channel c = _channels[name] = new Channel(name, private);
-      connection.trigger(c.getSubscriptionEvent());
-      return c;
-    }
+    if(_channels[name] == null)
+      return _channels[name] = new Channel(name, private)
+        ..channelEventDispatchStream.listen(triggerEvent);
     return _channels[name];
   }
 
@@ -137,7 +135,7 @@ implements Bindable {
 
   reconnectChannels() {
     _channels.forEach((String name, Channel c) {
-      connection.trigger(c.getSubscriptionEvent());
+      connection.trigger(c._getSubscriptionEvent());
     });
   }
 }

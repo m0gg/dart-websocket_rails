@@ -4,27 +4,19 @@ abstract class Bindable {
   Map eventControllers;
 
   //compat
-  void bind(String eName, Function cb);
+  StreamSubscription bind(String eName, Function cb);
   StreamController _setupController(String eName);
   Stream getEventStream(String eName);
 
-  /*TODO: unbind callbacks
-  unbind: (event_name) ->
-    delete @_callbacks[event_name]
-  */
+  // unbind via StreamSubscription.cancel()
 }
 
 class DefaultBindable implements Bindable {
   Map<String, StreamController<dynamic>> eventControllers = {};
 
-  bind(String eName, Function cb) {
-    getEventStream(eName).listen(cb);
+  StreamSubscription bind(String eName, Function cb) {
+    return getEventStream(eName).listen(cb);
   }
-
-  /*TODO: unbind callbacks
-  unbind: (event_name) ->
-    delete @_callbacks[event_name]
-  */
 
   StreamController _setupController(String eName) {
     StreamController sC = eventControllers[eName];
