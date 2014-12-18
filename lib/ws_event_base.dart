@@ -1,8 +1,8 @@
 part of websocket_rails;
 
 abstract class WsEvent {
-  Map _attr;
-  String _connectionId;
+  Map attr;
+  String connectionId;
 
   static const String DATA_IDX = 'data';
   static const String SUCCESS_IDX = 'success';
@@ -12,7 +12,7 @@ abstract class WsEvent {
   static const String ID_IDX = 'id';
   static const String DATA_CID_IDX = 'connection_id';
 
-  WsEvent([this._attr, this._connectionId]);
+  WsEvent([this.attr, this.connectionId]);
 
   factory WsEvent.fromJson(List jsonData) {
     if(jsonData is List && jsonData.length > 0) {
@@ -42,13 +42,13 @@ abstract class WsEvent {
   }
 
   String get name;
-
-  String toJson() {
-    return JSON.encode([name, _attr, _connectionId]);
-  }
+  String toJson() => JSON.encode([name, attr, connectionId]);
 }
 
 class WsData extends WsEvent {
+  static Random _RND = new Random();
+  static get random => (((1+_RND.nextInt(99999))*0x10000)|0);
+
   String _name;
 
   WsData(this._name, Map attr, [String _connectionId])
@@ -61,30 +61,25 @@ class WsData extends WsEvent {
       return new WsChannel(name, attr, connectionId);
   }
 
-  dynamic get data => _attr[WsEvent.DATA_IDX];
-  String get name => this.name;
-
-  int get id => (_attr[WsEvent.ID_IDX] != null ? _attr[WsEvent.ID_IDX] : random);
-
-  static Random _RND = new Random();
-  static get random => (((1+_RND.nextInt(99999))*0x10000)|0);
+  dynamic get data => attr[WsEvent.DATA_IDX];
+  String get name => this._name;
+  int get id => (attr[WsEvent.ID_IDX] != null ? attr[WsEvent.ID_IDX] : attr[WsEvent.ID_IDX] = random);
 }
 
 class WsChannel extends WsData {
-  WsChannel(String name, Map attr, [String _connectionId])
-  : super(name, attr, _connectionId);
+  WsChannel(String name, Map attr, [String connectionId])
+  : super(name, attr, connectionId);
 
-  String get channel => _attr[WsEvent.CHANNEL_IDX];
-  String get serverToken => _attr[WsEvent.S_TOKEN_IDX];
+  String get channel => attr[WsEvent.CHANNEL_IDX];
+  String get serverToken => attr[WsEvent.S_TOKEN_IDX];
 }
-
 
 //Data-classes
 class WsResult extends WsData {
   WsResult(String name, Map attr, [String connectionId])
   : super(name, attr, connectionId);
 
-  bool get success => _attr[WsEvent.SUCCESS_IDX];
+  bool get success => attr[WsEvent.SUCCESS_IDX];
 }
 
 
@@ -95,11 +90,37 @@ class WsToken extends WsEvent {
   WsToken(String name, Map attr, [String connectionId])
   : super(attr, connectionId);
 
-  String get token => _attr[WsEvent.TOKEN_IDX];
-  String get channel => _attr[WsEvent.CHANNEL_IDX];
+  String get token => attr[WsEvent.TOKEN_IDX];
+  String get channel => attr[WsEvent.CHANNEL_IDX];
   String get name => NAME;
 }
 
+class WsSubscribe extends WsData {
+  static const NAME = 'websocket_rails.subscribe';
+
+  WsSubscribe(String channelName, [String connectionId])
+  : super(NAME, null, connectionId) {
+    attr = { 'data': { 'channel': channelName }};
+  }
+
+  String get channel => attr[WsEvent.DATA_IDX][WsEvent.CHANNEL_IDX];
+  void set channel(arg) => attr[WsEvent.DATA_IDX][WsEvent.CHANNEL_IDX] = arg;
+  String get name => NAME;
+}
+
+class WsSubscribePrivate extends WsSubscribe {
+  static const NAME = 'websocket_rails.subscribe_private';
+
+  WsSubscribePrivate(String channelName, [String connectionId])
+  : super(channelName, connectionId);
+}
+
+class WsUnsubscribe extends WsSubscribe {
+  static const NAME = 'websocket_rails.unsubscribe';
+
+  WsUnsubscribe(String channelName, [String connectionId])
+  : super(channelName, connectionId);
+}
 
 class WsPing extends WsEvent {
   static const NAME = 'websocket_rails.ping';
@@ -126,7 +147,7 @@ class WsConnectionEstablished extends WsEvent {
   : super(attr);
   
   String get name => NAME;
-  String get connectionId => _attr[WsEvent.DATA_IDX][WsEvent.DATA_CID_IDX];
+  String get connectionId => attr[WsEvent.DATA_IDX][WsEvent.DATA_CID_IDX];
 }
 
 class WsConnectionClosed extends WsEvent {

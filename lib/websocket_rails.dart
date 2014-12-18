@@ -15,6 +15,7 @@ class WebSocketRails {
   int state;
   WebSocketConnection connection;
   Map<int, WsEvent> queue;
+  Map<int, Completer> queueCompleters;
   Map<String, Channel> channels;
 
   Map<String, StreamController<dynamic>> cbControllers;
@@ -33,6 +34,7 @@ class WebSocketRails {
     this.cbControllers = {};
     this.cbStreams = {};
     this.queue = {};
+    this.queueCompleters = {};
     this.channels = {};
   }
 
@@ -55,7 +57,7 @@ class WebSocketRails {
       disconnect();
       connect();
       queue.forEach((int i, WsEvent e) {
-        if(e != null && e._connectionId == ocid && e is ! WsResult) triggerEvent(e);
+        if(e != null && e.connectionId == ocid && e is ! WsResult) triggerEvent(e);
       });
     }
   }
@@ -64,8 +66,7 @@ class WebSocketRails {
     for(List data in message) {
       WsEvent e = new WsEvent.fromJson(data);
       if(e is WsResult) {
-        //queue[e.id].emitResponse(e);
-        queue[e.id] = null;
+        _emitResponse(e);
       } else if(e is WsChannel || e is WsToken) {
         dispatchChannel(e);
       } else if(e is WsPing) {
@@ -73,6 +74,14 @@ class WebSocketRails {
       } else if(state == STATE_CONNECTING && e is WsConnectionEstablished) {
         connectionEstablished(e);
       }
+    }
+  }
+
+  _emitResponse(WsData e) {
+    if(e.id != null && queue[e.id] != null && queueCompleters[e.id] != null) {
+      queueCompleters[e.id].complete(e.data);
+      queue[e.id] = null;
+      queueCompleters[e.id] = null;
     }
   }
 
@@ -86,14 +95,15 @@ class WebSocketRails {
     cbStreams[name].listen(cb);
   }
 
-/*
+  /*TODO: event unbind callbacks
   unbind: (event_name) =>
     delete @callbacks[event_name]
   */
 
   Future trigger(String name, [Map<String, String> data = const { }]) {
     Completer ac = new Completer();
-    WsEvent e = new WsData(name, data, connection.connection_id);
+    WsData e = new WsData(name, data, connection.connection_id);
+    queueCompleters[e.id] = ac;
     triggerEvent(e);
     return ac.future;
   }

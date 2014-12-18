@@ -56,7 +56,7 @@ class WebSocketConnection {
   }
   
   sendEvent(WsEvent e) {
-    if(this.connection_id != null) e._connectionId = this.connection_id;
+    if(this.connection_id != null) e.connectionId = this.connection_id;
     ws.sendString(e.toJson());
   }
   

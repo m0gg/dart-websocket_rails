@@ -7,11 +7,8 @@ class Channel {
   
   List queue;
   String token;
-  String connection_id;
-  
-  Function onSuccess;
-  Function onFailure;
-  
+  String connectionId;
+
   Map<String, Stream<dynamic>> cbStreams;
   Map<String, StreamController<dynamic>> cbControllers;
   
@@ -20,10 +17,9 @@ class Channel {
   static const String UNSUBSCRIBE = 'websocket_rails.unsubscribe';
   static const String RAILS_TOKEN = 'websocket_rails.channel_token';
   
-  Channel(this.name, this.dispatcher, this.private, { this.onSuccess: null, this.onFailure: null }) {
-    String e_name = (private ? SUBSCRBE_PRIVATE : SUBSCRBE);
-    connection_id = dispatcher.connection.connection_id;
-    WsData e = new WsData(e_name, { 'data': { 'channel': name }}, connection_id);
+  Channel(this.name, this.dispatcher, this.private, { Function onSuccess: null, Function onFailure: null }) {
+    connectionId = dispatcher.connection.connection_id;
+    WsSubscribe e = (private ? new WsSubscribePrivate(name, connectionId): new WsSubscribe(name, connectionId));
     cbControllers = {};
     cbStreams = {};
     queue = [];
@@ -31,23 +27,20 @@ class Channel {
   }
   
   destroy() {
-    if(connection_id == dispatcher.connection.connection_id) {
-      WsData e = new WsData(UNSUBSCRIBE, { 'data': { 'channel': name }}, connection_id);
+    if(connectionId == dispatcher.connection.connection_id) {
+      WsUnsubscribe e = new WsUnsubscribe(name, connectionId);
       dispatcher.triggerEvent(e);
     }
+    //TODO: callbacks on destroying channel
     //@_callbacks = {}
   }
   
   
-  bind(String name, Function cb) {
-    if(cbStreams[name] == null) {
-      cbControllers[name] = new StreamController.broadcast();
-      cbStreams[name] = cbControllers[name].stream;
-    }
-    cbStreams[name].listen(cb);
+  bind(String eName, Function cb) {
+    getStream(eName).listen(cb);
   }
   
-  /*
+  /*TODO: channel unbind callbacks
   unbind: (event_name) ->
     delete @_callbacks[event_name]
   */
@@ -61,13 +54,15 @@ class Channel {
     }
   }
   
-  dispatch(dynamic e) {
+  dispatch(WsEvent e) {
     if(e is WsToken) {
-      connection_id = dispatcher.connection.connection_id;
+      connectionId = dispatcher.connection.connection_id;
       token = e.token;
       flushQueue();
     } else if(e is WsChannel) {
-      cbControllers[e.name].add(e);
+      _setupController(e.name).add(e.data);
+    } else {
+      print('Unexpected event dispatched to Channel "$name": $e');
     }
   }
   
@@ -76,5 +71,18 @@ class Channel {
       dispatcher.triggerEvent(e);
     }
     queue.clear();
+  }
+
+  StreamController _setupController(String eName) {
+    StreamController sC = cbControllers[eName];
+    if(sC == null) {
+      sC = new StreamController.broadcast();
+      cbControllers[eName] = sC;
+    }
+    return sC;
+  }
+
+  Stream getStream(String eName) {
+    return _setupController(eName).stream;
   }
 }
