@@ -64,4 +64,4 @@ The `StreamSubscription` instance can later be `sc.cancel()`-ed to unbind a sing
 WIP
 ===
 
-It's not done yet
+It's not finished yet, but it works.
