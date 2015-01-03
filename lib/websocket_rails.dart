@@ -120,7 +120,7 @@ implements Bindable {
     return _channels[name];
   }
 
-  _unsubscribe(String name) {
+  unsubscribe(String name) {
     if(_channels[name] != null) {
       _channels[name].destroy();
       _channels.remove(name);
