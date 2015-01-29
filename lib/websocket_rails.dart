@@ -19,6 +19,7 @@ implements Bindable {
 
   String url;
   int state;
+  Duration reconnectTimeout;
   WebSocketConnection connection;
   Map<String, Channel> _channels = {};
   Map<int, WsEvent> _eventQueue = {};
@@ -29,19 +30,34 @@ implements Bindable {
   static const int STATE_CONNECTING = 1;
   static const int STATE_CONNECTED = 2;
 
-  WebSocketRails(this.url);
+  WebSocketRails(this.url, { this.reconnectTimeout }) {
+    if(this.reconnectTimeout == null) this.reconnectTimeout = new Duration(seconds: 1);
+  }
 
   //TODO: implement own streams
-  Stream get onOpen => connection.onOpen.stream;
-  Stream get onClose => connection.onClose.stream;
+  Stream get onOpen => connection.onOpenController.stream;
+  Stream get onClose => connection.onCloseController.stream;
 
-  connect() {
+  Future connect() {
+    Completer ac = new Completer();
     if(connection == null) {
       state = STATE_CONNECTING;
       connection = new WebSocketConnection(this.url)
-        ..onOpen.stream.listen((_) => _connectionEstablished(_))
-        ..onEvent.stream.listen((_) => _newMessage(_));
+        ..onErrorController.stream.listen((_) => ac.completeError(_))
+        ..onEventController.stream.listen((_) => _newMessage(_))
+        ..onOpenController.stream.listen((_) {
+        ac.complete();
+        _connectionEstablished(_);
+      });
+    } else {
+      ac.completeError(
+          new Exception('''
+          Already having a connection...
+          This point is either reached because of a bug
+          or invalid handling of the library!
+      '''));
     }
+    return ac.future;
   }
 
   disconnect() {
@@ -56,9 +72,15 @@ implements Bindable {
     if(connection != null) {
       String oCid = connection.connectionId;
       disconnect();
-      connect();
-      _eventQueue.forEach((int i, WsEvent e) {
-        if(e != null && e.connectionId == oCid && e is ! WsResult) triggerEvent(e);
+      connect()
+        ..then((_) {
+        reconnectChannels();
+        _eventQueue.forEach((int i, WsEvent e) {
+          if(e != null && e.connectionId == oCid && e is ! WsResult) triggerEvent(e);
+        });
+      })
+        ..catchError((_) {
+        new Future.delayed(this.reconnectTimeout, reconnect);
       });
     }
   }
@@ -68,6 +90,9 @@ implements Bindable {
       _emitResponse(e);
     } else if(e is WsChannel || e is WsToken) {
       _dispatchChannel(e);
+    } else if(e is WsConnectionClosed) {
+      print("Connection lost! trying to reestablish...");
+      if(state != STATE_CONNECTING) reconnect();
     } else {
       _dispatch(e);
     }
@@ -83,7 +108,6 @@ implements Bindable {
 
   _connectionEstablished(WsConnectionEstablished e) {
     state = STATE_CONNECTED;
-    reconnectChannels();
   }
 
   Future trigger(String name, [Map<String, String> data = const {}]) {
@@ -108,7 +132,7 @@ implements Bindable {
     if(eventControllers[e.name] != null) eventControllers[e.name].add(e.data);
   }
 
-  //Channel related
+//Channel related
   Channel subscribe(String name) => _subscribe(name, false);
   Channel subscribePrivate(String name) => _subscribe(name, true);
   Channel _subscribe(String name, bool private) {
@@ -129,7 +153,7 @@ implements Bindable {
     if(_channels[e.channel] != null)
       _channels[e.channel].dispatch(e);
   }
-  //End Channel related
+//End Channel related
 
   get connectionStale => state != STATE_CONNECTED;
 

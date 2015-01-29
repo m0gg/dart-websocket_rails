@@ -9,15 +9,19 @@ implements Queueable<WsEvent> {
   WebSocket ws;
   String connectionId;
 
-  StreamController<CloseEvent> onClose;
-  StreamController<WsEvent> onError;
-  StreamController<WsEvent> onEvent;
-  StreamController onOpen;
+  StreamController<CloseEvent> onCloseController;
+  StreamController<Event> onErrorController;
+  StreamController<WsEvent> onEventController;
+  StreamController onOpenController;
+
+  Stream get onClose => onCloseController.stream;
 
   WebSocketConnection(this.url) {
     queue = [];
-    onEvent = new StreamController.broadcast();
-    onOpen = new StreamController.broadcast()
+    onCloseController = new StreamController.broadcast();
+    onErrorController = new StreamController.broadcast();
+    onEventController = new StreamController.broadcast();
+    onOpenController = new StreamController.broadcast()
       ..stream.listen(_connectionEstablished);
 
     String protocol;
@@ -33,31 +37,28 @@ implements Queueable<WsEvent> {
 
   close() {
     ws.close();
+    onCloseController.close();
+    onEventController.close();
+    onOpenController.close();
   }
 
   _onClose(CloseEvent e) {
-    //TODO: onClose event
-    /*if(dispatcher == null || dispatcher.connection != this) return;
-    WsEvent event = new WsEvent([WsEvent.NAME_CONN_CLOSE, JSON.decode({ 'data': e })]);
-    dispatcher.state = WebSocketRails.STATE_DISCONNECTED;
-    dispatcher.dispatch(event);*/
+    if(!e.wasClean) {
+      print("Websocket connection was shut down unexpectedly with code: ${e.code} reason: \"${e.reason}\"");
+    }
+    onEventController.add(new WsConnectionClosed());
+    onCloseController.add(e);
   }
 
   _onError(Event e) {
-    //TODO: onError event
-    /*if(dispatcher == null || dispatcher.connection != this) return;
-    WsEvent event = new WsEvent([WsEvent.NAME_CONN_ERROR, JSON.decode({ 'data': e })]);
-    dispatcher.state = WebSocketRails.STATE_DISCONNECTED;
-    dispatcher.dispatch(event);*/
+    onErrorController.add(e);
   }
 
   _onMessage(MessageEvent event) {
-    //TODO: Filter unused connections
-    //if(dispatcher == null || dispatcher.connection != this) return;
     List<WsEvent> messages = JSON.decode(event.data).map((_) => new WsEvent.fromJson(_));
     for(WsEvent e in messages) {
-      if(e is! WsPing && e is! WsConnectionEstablished)
-        onEvent.add(e);
+      if(e is !WsPing && e is !WsConnectionEstablished)
+        onEventController.add(e);
       else
         dispatch(e);
     }
@@ -72,7 +73,7 @@ implements Queueable<WsEvent> {
     if(e is WsPing)
       pong();
     else if(e is WsConnectionEstablished)
-      onOpen.add(e);
+      onOpenController.add(e);
   }
 
   sendEvent(WsEvent e) {
