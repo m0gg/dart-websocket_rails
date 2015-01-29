@@ -60,6 +60,16 @@ StreamSubscription sc = wsCh.getEventStream('bar').listen((data) {
 ```
 The `StreamSubscription` instance can later be `sc.cancel()`-ed to unbind a single event.
 
+CHANGELOG
+=========
+
+29. Jan. 2015 - 0.1.0:
+
+
+##### Implement correct handling of reconnect #####
+349d796e38bf1ed6b3dc34594a58d3004b51ca99  
+Reconnect will now be called automaically on connection loss, but not if the initial connect() was unsuccessful. The Periodic call of reconnect() can be configured by the optional parameter reconnectTimeout on initialization ob the WebsocketRails instance.
+
 
 WIP
 ===

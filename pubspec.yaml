@@ -1,5 +1,5 @@
 name: websocket_rails
-version: 0.0.1
+version: 0.1.0
 author: Marcel Sackermann <marcel@m0gg.org>
 description: package to communicate with a websocket managed by [websocket-rails/websocket-rails](https://github.com/websocket-rails/websocket-rails/tree/master/lib/assets/javascripts/websocket_rails) gem
 homepage: https://github.com/m0gg/dart-websocket_rails
