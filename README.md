@@ -66,8 +66,7 @@ CHANGELOG
 29. Jan. 2015 - 0.1.0:
 
 
-##### Implement correct handling of reconnect #####
-349d796e38bf1ed6b3dc34594a58d3004b51ca99  
+##### [b193e37](https://github.com/m0gg/dart-websocket_rails/commit/349d796e38bf1ed6b3dc34594a58d3004b51ca99) Implement correct handling of reconnect #####
 Reconnect will now be called automaically on connection loss, but not if the initial connect() was unsuccessful. The Periodic call of reconnect() can be configured by the optional parameter reconnectTimeout on initialization ob the WebsocketRails instance.
 
 
