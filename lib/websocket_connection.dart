@@ -37,7 +37,7 @@ implements Queueable<WsEvent> {
 
   close() {
     ws.close();
-    onCloseController.close();
+    onEventController.add(new WsConnectionClosed());
     onEventController.close();
     onOpenController.close();
   }
@@ -46,8 +46,8 @@ implements Queueable<WsEvent> {
     if(!e.wasClean) {
       print("Websocket connection was shut down unexpectedly with code: ${e.code} reason: \"${e.reason}\"");
     }
-    onEventController.add(new WsConnectionClosed());
     onCloseController.add(e);
+    onCloseController.close();
   }
 
   _onError(Event e) {
