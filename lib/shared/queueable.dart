@@ -1,5 +1,6 @@
 part of websocket_rails;
 
+@deprecated
 abstract class Queueable<T> {
   List<T> queue;
 
@@ -9,6 +10,7 @@ abstract class Queueable<T> {
   bool get queueIsBlocked;
 }
 
+@deprecated
 class DefaultQueueable<T> implements Queueable<T> {
   List<T> queue = [];
 

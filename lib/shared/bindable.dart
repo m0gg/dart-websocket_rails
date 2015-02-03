@@ -14,9 +14,8 @@ abstract class Bindable {
 class DefaultBindable implements Bindable {
   Map<String, StreamController<dynamic>> eventControllers = {};
 
-  StreamSubscription bind(String eName, Function cb) {
-    return getEventStream(eName).listen(cb);
-  }
+  @deprecated
+  StreamSubscription bind(String eName, Function cb) => getEventStream(eName).listen(cb);
 
   StreamController _setupController(String eName) {
     StreamController sC = eventControllers[eName];

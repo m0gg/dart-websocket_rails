@@ -19,8 +19,8 @@ abstract class WsEvent {
       Iterator argIt = jsonData.iterator
         ..moveNext();
       return _switchByType(argIt.current,
-        (argIt.moveNext() ? argIt.current : null),
-        (argIt.moveNext() ? argIt.current : null));
+      (argIt.moveNext() ? argIt.current : null),
+      (argIt.moveNext() ? argIt.current : null));
     } else throw new Exception('Malformed call of factory WsEventBase.fromJSON! Expected List with length > 0 jsonDATA: $jsonData');
   }
 
@@ -55,10 +55,20 @@ class WsData extends WsEvent {
   : super(attr, _connectionId);
 
   factory WsData.switchByType(String name, Map attr, [String connectionId]) {
+
     if(attr[WsEvent.SUCCESS_IDX] != null)
       return new WsResult(name, attr, connectionId);
-    if(attr[WsEvent.CHANNEL_IDX] != null)
-      return new WsChannel(name, attr, connectionId);
+
+    if(attr[WsEvent.CHANNEL_IDX] != null) {
+      switch(name) {
+        case WsSubscribe.NAME:
+          return new WsSubscribe.fromAttr(attr, connectionId);
+        case WsToken.NAME:
+          return new WsToken(attr, connectionId);
+        default:
+          return new WsChannelEvent(name, attr, connectionId);
+      }
+    }
   }
 
   dynamic get data => attr[WsEvent.DATA_IDX];
@@ -66,8 +76,8 @@ class WsData extends WsEvent {
   int get id => (attr[WsEvent.ID_IDX] != null ? attr[WsEvent.ID_IDX] : attr[WsEvent.ID_IDX] = random);
 }
 
-class WsChannel extends WsData {
-  WsChannel(String name, Map attr, [String connectionId])
+class WsChannelEvent extends WsData {
+  WsChannelEvent(String name, Map attr, [String connectionId])
   : super(name, attr, connectionId);
 
   String get channel => attr[WsEvent.CHANNEL_IDX];
@@ -84,27 +94,30 @@ class WsResult extends WsData {
 
 
 //Control-classes
-class WsToken extends WsEvent {
+class WsToken extends WsChannelEvent {
   static const String NAME = 'websocket_rails.channel_token';
 
-  WsToken(String name, Map attr, [String connectionId])
-  : super(attr, connectionId);
+  WsToken(Map attr, [String connectionId])
+  : super(NAME, attr, connectionId);
 
   String get token => attr[WsEvent.TOKEN_IDX];
   String get channel => attr[WsEvent.CHANNEL_IDX];
   String get name => NAME;
 }
 
-class WsSubscribe extends WsData {
+class WsSubscribe extends WsChannelEvent {
   static const NAME = 'websocket_rails.subscribe';
+
+  WsSubscribe.fromAttr(Map attr, [connectionId])
+  : super(NAME, attr, connectionId);
 
   WsSubscribe(String channelName, [String connectionId])
   : super(NAME, null, connectionId) {
     attr = { 'data': { 'channel': channelName }};
   }
 
-  String get channel => attr[WsEvent.DATA_IDX][WsEvent.CHANNEL_IDX];
-  void set channel(arg) => attr[WsEvent.DATA_IDX][WsEvent.CHANNEL_IDX] = arg;
+  /*String get channel => attr[WsEvent.DATA_IDX][WsEvent.CHANNEL_IDX];
+  void set channel(arg) => attr[WsEvent.DATA_IDX][WsEvent.CHANNEL_IDX] = arg;*/
   String get name => NAME;
 }
 
@@ -127,7 +140,7 @@ class WsPing extends WsEvent {
 
   WsPing()
   : super();
-  
+
   String get name => NAME;
 }
 
@@ -136,7 +149,7 @@ class WsPong extends WsEvent {
 
   WsPong(String connectionId)
   : super({}, connectionId);
-  
+
   String get name => NAME;
 }
 
@@ -145,7 +158,7 @@ class WsConnectionEstablished extends WsEvent {
 
   WsConnectionEstablished(Map attr)
   : super(attr);
-  
+
   String get name => NAME;
   String get connectionId => attr[WsEvent.DATA_IDX][WsEvent.DATA_CID_IDX];
 }
@@ -155,7 +168,7 @@ class WsConnectionClosed extends WsEvent {
 
   WsConnectionClosed()
   : super();
-  
+
   String get name => NAME;
 }
 
@@ -164,6 +177,6 @@ class WsConnectionError extends WsEvent {
 
   WsConnectionError()
   : super();
-  
+
   String get name => NAME;
 }

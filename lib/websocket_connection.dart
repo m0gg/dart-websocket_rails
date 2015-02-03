@@ -37,17 +37,18 @@ implements Queueable<WsEvent> {
 
   close() {
     ws.close();
-    onEventController.add(new WsConnectionClosed());
     onEventController.close();
     onOpenController.close();
   }
 
   _onClose(CloseEvent e) {
+    log.fine("disconnected from ${url}");
     if(!e.wasClean) {
-      print("Websocket connection was shut down unexpectedly with code: ${e.code} reason: \"${e.reason}\"");
+      log.fine("Websocket connection was shut down unexpectedly with code: ${e.code} reason: \"${e.reason}\"");
     }
+    onEventController.add(new WsConnectionClosed());
     onCloseController.add(e);
-    onCloseController.close();
+    onCloseController.done.then((_) => onCloseController.close());
   }
 
   _onError(Event e) {
@@ -57,6 +58,7 @@ implements Queueable<WsEvent> {
   _onMessage(MessageEvent event) {
     List<WsEvent> messages = JSON.decode(event.data).map((_) => new WsEvent.fromJson(_));
     for(WsEvent e in messages) {
+      log.finest("received event: '${e.name}'");
       if(e is !WsPing && e is !WsConnectionEstablished)
         onEventController.add(e);
       else
@@ -90,6 +92,7 @@ implements Queueable<WsEvent> {
 
   bool get queueIsBlocked => ws.readyState != WebSocket.OPEN;
   queueOut(WsEvent e) {
+    log.finest("sending  event: '${e.name}'");
     sendEvent(e);
   }
 }

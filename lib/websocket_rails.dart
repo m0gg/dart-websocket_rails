@@ -5,23 +5,29 @@ import 'dart:html';
 import 'dart:async';
 import 'dart:math';
 
+import 'package:logging/logging.dart';
+
 part 'shared/bindable.dart';
 part 'shared/queueable.dart';
+part 'shared/ws_event_gateway.dart';
+part 'shared/ws_event_queue.dart';
 part 'ws_event.dart';
 part 'ws_event_base.dart';
-part 'channel.dart';
+part 'ws_channel.dart';
 part 'websocket_connection.dart';
+
+final Logger log = new Logger("WesocketRails");
 
 class WebSocketRails
 extends Object
 with DefaultBindable
-implements Bindable {
+implements Bindable, WsEventDispatcher {
 
   String url;
   int state;
   Duration reconnectTimeout;
   WebSocketConnection connection;
-  Map<String, Channel> _channels = {};
+  Map<String, WsChannel> _channels = {};
   Map<int, WsEvent> _eventQueue = {};
   Map<int, Completer> _eventQueueCompleter = {};
 
@@ -32,6 +38,7 @@ implements Bindable {
 
   WebSocketRails(this.url, { this.reconnectTimeout }) {
     if(this.reconnectTimeout == null) this.reconnectTimeout = new Duration(seconds: 1);
+    log.finest("initialized");
   }
 
   //TODO: implement own streams
@@ -39,6 +46,7 @@ implements Bindable {
   Stream get onClose => connection.onCloseController.stream;
 
   Future connect() {
+    log.finest("called connect()");
     Completer ac = new Completer();
     if(connection == null) {
       state = STATE_CONNECTING;
@@ -50,17 +58,19 @@ implements Bindable {
         _connectionEstablished(_);
       });
     } else {
-      ac.completeError(
-          new Exception('''
+      Exception e = new Exception('''
           Already having a connection...
           This point is either reached because of a bug
           or invalid handling of the library!
-      '''));
+      ''');
+      log.fine(e);
+      ac.completeError(e);
     }
     return ac.future;
   }
 
   disconnect() {
+    log.finest("called disconnect()");
     if(connection != null) {
       connection.close();
       this.connection = null;
@@ -69,12 +79,12 @@ implements Bindable {
   }
 
   reconnect() {
+    log.finest("called reconnect()");
     if(connection != null) {
       String oCid = connection.connectionId;
       disconnect();
       connect()
         ..then((_) {
-        reconnectChannels();
         _eventQueue.forEach((int i, WsEvent e) {
           if(e != null && e.connectionId == oCid && e is ! WsResult) triggerEvent(e);
         });
@@ -88,10 +98,10 @@ implements Bindable {
   _newMessage(WsEvent e) {
     if(e is WsResult) {
       _emitResponse(e);
-    } else if(e is WsChannel || e is WsToken) {
+    } else if(e is WsChannelEvent || e is WsToken) {
       _dispatchChannel(e);
     } else if(e is WsConnectionClosed) {
-      print("Connection lost! trying to reestablish...");
+      log.fine("Connection lost! trying to reestablish...");
       if(state != STATE_CONNECTING) reconnect();
     } else {
       _dispatch(e);
@@ -107,12 +117,18 @@ implements Bindable {
   }
 
   _connectionEstablished(WsConnectionEstablished e) {
+    log.fine("connected to ${url}");
     state = STATE_CONNECTED;
   }
 
+  @deprecated
   Future trigger(String name, [Map<String, String> data = const {}]) {
-    Completer ac = new Completer();
     WsData e = new WsData(name, data, connection.connectionId);
+    return trackEvent(e);
+  }
+
+  Future trackEvent(WsData e) {
+    Completer ac = new Completer();
     _eventQueueCompleter[e.id] = ac;
     triggerEvent(e);
     return ac.future;
@@ -122,8 +138,11 @@ implements Bindable {
     if(connection == null) throw new Exception('Could not trigger Event. No existing connection!');
     if(_eventQueue[e.id] == null)
       _eventQueue[e.id] = e;
-    else
-      throw new Exception('Could not queue Event, id already used');
+    else {
+      Exception ex = new Exception('Could not queue Event, id already used: ${e.toJson()}');
+      log.fine(ex);
+      throw ex;
+    }
     connection.trigger(e);
     return e;
   }
@@ -133,33 +152,38 @@ implements Bindable {
   }
 
 //Channel related
-  Channel subscribe(String name) => _subscribe(name, false);
-  Channel subscribePrivate(String name) => _subscribe(name, true);
-  Channel _subscribe(String name, bool private) {
-    if(_channels[name] == null)
-      return _channels[name] = new Channel(name, private)
-        ..channelEventDispatchStream.listen(triggerEvent);
-    return _channels[name];
+  WsChannel subscribe(String name) => _subscribe(name, false);
+  WsChannel subscribePrivate(String name) => _subscribe(name, true);
+  WsChannel _subscribe(String name, bool private) {
+    if(_channels[name] != null) return _channels[name];
+
+    log.finest("subscribing to channel: '$name', private: $private");
+    return _channels[name] = new WsChannel(this, name, private);
   }
 
   unsubscribe(String name) {
     if(_channels[name] != null) {
+      log.finest("unsubscribing channel: '$name'");
       _channels[name].destroy();
       _channels.remove(name);
     }
   }
 
-  _dispatchChannel(WsChannel e) {
-    if(_channels[e.channel] != null)
+  _dispatchChannel(WsChannelEvent e) {
+    if(_channels[e.channel] != null) {
+      log.finest("dispatch event to channel '${e.channel}': ${e.name}");
       _channels[e.channel].dispatch(e);
+    }
   }
 //End Channel related
 
-  get connectionStale => state != STATE_CONNECTED;
+  bool get isOpened => state != STATE_CONNECTED;
 
+  @deprecated
+  bool get connectionStale => isOpened;
+
+  @deprecated
   reconnectChannels() {
-    _channels.forEach((String name, Channel c) {
-      connection.trigger(c._getSubscriptionEvent());
-    });
+    throw new Exception("Do not use this function! Channels react on reconnection themselves!");
   }
 }
