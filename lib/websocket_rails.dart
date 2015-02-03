@@ -20,17 +20,18 @@ final Logger log = new Logger("WesocketRails");
 
 class WebSocketRails
 extends Object
-with DefaultBindable
+with DefaultBindable, WsEventAsyncQueueDefaults
 implements Bindable, WsEventDispatcher {
 
   String url;
   int state;
   Duration reconnectTimeout;
-  WebSocketConnection connection;
+  WsEventRelay relay;
   Map<String, WsChannel> _channels = {};
   Map<int, WsEvent> _eventQueue = {};
   Map<int, Completer> _eventQueueCompleter = {};
 
+  bool closed = false;
 
   static const int STATE_DISCONNECTED = 0;
   static const int STATE_CONNECTING = 1;
@@ -38,25 +39,26 @@ implements Bindable, WsEventDispatcher {
 
   WebSocketRails(this.url, { this.reconnectTimeout }) {
     if(this.reconnectTimeout == null) this.reconnectTimeout = new Duration(seconds: 1);
-    log.finest("initialized");
   }
 
-  //TODO: implement own streams
-  Stream get onOpen => connection.onOpenController.stream;
-  Stream get onClose => connection.onCloseController.stream;
-
   Future connect() {
-    log.finest("called connect()");
     Completer ac = new Completer();
-    if(connection == null) {
+    if(relay == null || state == STATE_DISCONNECTED) {
       state = STATE_CONNECTING;
-      connection = new WebSocketConnection(this.url)
+      WsEventRelay nRelay = new WebSocketConnection(this.url);
+      nRelay.onOpen.single
+        ..then((_) {
+        attachRelay(nRelay);
+        _connectionEstablished(_);
+        ac.complete();
+      })
+        ..catchError((_) => ac.completeError(_));
+
+      /*connection = new WebSocketConnection(this.url)
         ..onErrorController.stream.listen((_) => ac.completeError(_))
         ..onEventController.stream.listen((_) => _newMessage(_))
-        ..onOpenController.stream.listen((_) {
-        ac.complete();
-        _connectionEstablished(_);
-      });
+        ..onOpenController.stream.listen((_) {*/
+
     } else {
       Exception e = new Exception('''
           Already having a connection...
@@ -69,33 +71,47 @@ implements Bindable, WsEventDispatcher {
     return ac.future;
   }
 
-  disconnect() {
-    log.finest("called disconnect()");
-    if(connection != null) {
-      connection.close();
-      this.connection = null;
+  void attachRelay(WsEventRelay nRelay) {
+    if(relay != null && relay.isOpened) {
+      Exception e = new Exception('''
+          Already having an active relay attached...
+          This point is either reached because of a bug
+          or invalid handling of the library!
+      ''');
+      log.fine(e);
+      return;
     }
-    state = STATE_DISCONNECTED;
+    relay = nRelay;
+    nRelay.onClose.single.then((_) => handleDisconnect());
+    nRelay.onEvent.listen(handleEvent);
+  }
+
+  disconnect() {
+    closed = true;
+    disconnectRelay();
+  }
+
+  disconnectRelay() {
+    if(relay != null && relay.isOpened)
+      relay.close();
   }
 
   reconnect() {
-    log.finest("called reconnect()");
-    if(connection != null) {
-      String oCid = connection.connectionId;
-      disconnect();
-      connect()
-        ..then((_) {
-        _eventQueue.forEach((int i, WsEvent e) {
-          if(e != null && e.connectionId == oCid && e is ! WsResult) triggerEvent(e);
-        });
-      })
-        ..catchError((_) {
-        new Future.delayed(this.reconnectTimeout, reconnect);
+    String oCid = relay.connectionId;
+    disconnectRelay();
+
+    connect()
+      ..then((_) {
+      eventQueue.forEach((WsEvent e) {
+        if(e.connectionId == oCid && e is !WsResult) triggerEvent(e);
       });
-    }
+    })
+      ..catchError((_) => new Future.delayed(this.reconnectTimeout, reconnect));
   }
 
-  _newMessage(WsEvent e) {
+
+  // TODO: Continue working here!
+  handleEvent(WsEvent e) {
     if(e is WsResult) {
       _emitResponse(e);
     } else if(e is WsChannelEvent || e is WsToken) {
@@ -106,6 +122,11 @@ implements Bindable, WsEventDispatcher {
     } else {
       _dispatch(e);
     }
+  }
+
+  void handleDisconnect() {
+    state = STATE_DISCONNECTED;
+    if(!closed) reconnect();
   }
 
   _emitResponse(WsData e) {

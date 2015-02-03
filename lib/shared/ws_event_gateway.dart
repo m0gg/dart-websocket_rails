@@ -12,6 +12,9 @@ abstract class WsEventRelay implements EventQueue {
   Stream get onClose;
 
   bool get isOpened;
+  String get connectionId;
+
+  void close();
 
   sendEvent(WsEvent e);
 }

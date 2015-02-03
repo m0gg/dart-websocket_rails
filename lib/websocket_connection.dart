@@ -2,33 +2,29 @@ part of websocket_rails;
 
 class WebSocketConnection
 extends Object
-with DefaultQueueable<WsEvent>
-implements Queueable<WsEvent> {
-
+with EventQueueDefaults
+implements EventQueue<WsEvent>, WsEventRelay {
   String url;
   WebSocket ws;
   String connectionId;
 
-  StreamController<CloseEvent> onCloseController;
-  StreamController<Event> onErrorController;
-  StreamController<WsEvent> onEventController;
-  StreamController onOpenController;
+  StreamController onOpenController = new StreamController.broadcast();
+  StreamController<CloseEvent> onCloseController = new StreamController.broadcast();
+  StreamController<WsEvent> onEventController = new StreamController.broadcast();
 
+  Stream get onOpen => onOpenController.stream;
   Stream get onClose => onCloseController.stream;
+  Stream get onEvent => onEventController.stream;
+
+  List<WsEvent> _eventQueue = [];
+  List get eventQueue => _eventQueue;
+
+  bool get isOpened => ws.readyState == WebSocket.OPEN;
 
   WebSocketConnection(this.url) {
-    queue = [];
-    onCloseController = new StreamController.broadcast();
-    onErrorController = new StreamController.broadcast();
-    onEventController = new StreamController.broadcast();
-    onOpenController = new StreamController.broadcast()
-      ..stream.listen(_connectionEstablished);
-
-    String protocol;
-    if(window.location.protocol == 'https:')
-      protocol = 'wss:';
-    else
-      protocol = 'ws:';
+    onOpen.listen(connectionEstablished);
+    onEvent.listen(handleEvent);
+    String protocol = (window.location.protocol == 'https:') ? 'wss:': 'ws:';
     this.ws = new WebSocket('$protocol//${this.url}');
     this.ws.onClose.listen(_onClose);
     this.ws.onError.listen(_onError);
@@ -37,41 +33,39 @@ implements Queueable<WsEvent> {
 
   close() {
     ws.close();
-    onEventController.close();
-    onOpenController.close();
+    onEventController.add(new WsConnectionClosed());
+    onEventController.done.then((_)=> onEventController.close);
+    onOpenController.done.then((_)=> onOpenController.close);
+    onCloseController.done.then((_) => onCloseController.close());
   }
 
   _onClose(CloseEvent e) {
     log.fine("disconnected from ${url}");
     if(!e.wasClean) {
-      log.fine("Websocket connection was shut down unexpectedly with code: ${e.code} reason: \"${e.reason}\"");
+      log.fine("websocket connection was shut down unexpectedly with code: ${e.code} reason: \"${e.reason}\"");
     }
-    onEventController.add(new WsConnectionClosed());
-    onCloseController.add(e);
-    onCloseController.done.then((_) => onCloseController.close());
+    close();
   }
 
   _onError(Event e) {
-    onErrorController.add(e);
+    log.fine("websocket generated an error: ${e}");
+    close();
   }
 
   _onMessage(MessageEvent event) {
     List<WsEvent> messages = JSON.decode(event.data).map((_) => new WsEvent.fromJson(_));
     for(WsEvent e in messages) {
-      log.finest("received event: '${e.name}'");
-      if(e is !WsPing && e is !WsConnectionEstablished)
-        onEventController.add(e);
-      else
-        dispatch(e);
+      handleEvent(e);
+      onEventController.add(e);
     }
   }
 
-  _connectionEstablished(WsConnectionEstablished e) {
+  connectionEstablished(WsConnectionEstablished e) {
     connectionId = e.connectionId;
-    flushQueue();
+    eventQueueFlush();
   }
 
-  dispatch(WsEvent e) {
+  handleEvent(WsEvent e) {
     if(e is WsPing)
       pong();
     else if(e is WsConnectionEstablished)
@@ -79,20 +73,26 @@ implements Queueable<WsEvent> {
   }
 
   sendEvent(WsEvent e) {
-    if(this.connectionId != null) e.connectionId = this.connectionId;
+    // old version, is this really correct?
+    //if(this.connectionId != null) e.connectionId = this.connectionId;
+    if(this.connectionId == null) {
+      log.fine("Updated connectionId of Event");
+      e.connectionId = this.connectionId;
+    }
     ws.sendString(e.toJson());
   }
 
   pong() {
-    trigger(new WsPong(connectionId));
+    eventQueueAdd(new WsPong(connectionId));
   }
 
-  //alias Method, compat
-  trigger(WsEvent e) => queueAdd(e);
-
-  bool get queueIsBlocked => ws.readyState != WebSocket.OPEN;
-  queueOut(WsEvent e) {
-    log.finest("sending  event: '${e.name}'");
+  bool get eventQueueIsBlocked => ws.readyState != WebSocket.OPEN;
+  bool eventQueueOut(WsEvent e) {
+    // Send and pray!
     sendEvent(e);
+    return true;
   }
+
+  @deprecated
+  trigger(WsEvent e) => eventQueueAdd(e);
 }
