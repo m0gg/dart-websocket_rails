@@ -2,8 +2,8 @@ part of websocket_rails;
 
 class WebSocketConnection
 extends Object
-with EventQueueDefaults
-implements EventQueue<WsEvent>, WsEventRelay {
+with EventQueueDefaults<WsEvent>
+implements WsEventRelay {
   String url;
   WebSocket ws;
   String connectionId;

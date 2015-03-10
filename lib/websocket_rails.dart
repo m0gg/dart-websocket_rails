@@ -20,16 +20,24 @@ final Logger log = new Logger("WesocketRails");
 
 class WebSocketRails
 extends Object
-with DefaultBindable, WsEventAsyncQueueDefaults
+with DefaultBindable, EventQueueDefaults<WsData>, WsEventAsyncQueueDefaults
 implements Bindable, WsEventDispatcher {
 
   String url;
   int state;
   Duration reconnectTimeout;
-  WsEventRelay relay;
+  StreamSubscription relayOnEventSubscription;
+  WsEventRelay mRelay;
+
+  // TODO: fix usage
   Map<String, WsChannel> _channels = {};
-  Map<int, WsEvent> _eventQueue = {};
+  Map<String, WsChannel> get channels =>_channels;
+
+  List<WsEvent> _eventQueue = [];
+  List get eventQueue => _eventQueue;
+
   Map<int, Completer> _eventQueueCompleter = {};
+  Map<int, Completer> get eventQueueCompleter => _eventQueueCompleter;
 
   bool closed = false;
 
@@ -43,7 +51,7 @@ implements Bindable, WsEventDispatcher {
 
   Future connect() {
     Completer ac = new Completer();
-    if(relay == null || state == STATE_DISCONNECTED) {
+    if(mRelay == null || state == STATE_DISCONNECTED) {
       state = STATE_CONNECTING;
       WsEventRelay nRelay = new WebSocketConnection(this.url);
       nRelay.onOpen.single
@@ -71,8 +79,14 @@ implements Bindable, WsEventDispatcher {
     return ac.future;
   }
 
+  String get connectionId {
+    if(mRelay != null) {
+      return mRelay.connectionId;
+    } else return null;
+  }
+
   void attachRelay(WsEventRelay nRelay) {
-    if(relay != null && relay.isOpened) {
+    if(mRelay != null && mRelay.isOpened) {
       Exception e = new Exception('''
           Already having an active relay attached...
           This point is either reached because of a bug
@@ -81,24 +95,33 @@ implements Bindable, WsEventDispatcher {
       log.fine(e);
       return;
     }
-    relay = nRelay;
+    log.fine("Attaching WsEventRelay");
+    mRelay = nRelay;
     nRelay.onClose.single.then((_) => handleDisconnect());
-    nRelay.onEvent.listen(handleEvent);
+    relayOnEventSubscription = nRelay.onEvent.listen(handleEvent);
+  }
+
+  void detachRelay() {
+    if(relayOnEventSubscription != null)
+      relayOnEventSubscription.cancel();
+    if(mRelay != null)
+      mRelay = null;
   }
 
   disconnect() {
     closed = true;
     disconnectRelay();
+    detachRelay();
   }
 
   disconnectRelay() {
-    if(relay != null && relay.isOpened)
-      relay.close();
+    if(mRelay != null && mRelay.isOpened)
+      mRelay.close();
   }
 
   reconnect() {
-    String oCid = relay.connectionId;
-    disconnectRelay();
+    String oCid = mRelay.connectionId;
+    disconnect();
 
     connect()
       ..then((_) {
@@ -113,11 +136,10 @@ implements Bindable, WsEventDispatcher {
   // TODO: Continue working here!
   handleEvent(WsEvent e) {
     if(e is WsResult) {
-      _emitResponse(e);
+      eventQueueEmitResponse(e);
     } else if(e is WsChannelEvent || e is WsToken) {
       _dispatchChannel(e);
     } else if(e is WsConnectionClosed) {
-      log.fine("Connection lost! trying to reestablish...");
       if(state != STATE_CONNECTING) reconnect();
     } else {
       _dispatch(e);
@@ -129,22 +151,25 @@ implements Bindable, WsEventDispatcher {
     if(!closed) reconnect();
   }
 
+  @deprecated
   _emitResponse(WsData e) {
-    if(e.id != null && _eventQueue[e.id] != null && _eventQueueCompleter[e.id] != null) {
+    throw new Exception("Do not use!");
+    /*if(e.id != null && _eventQueue[e.id] != null && _eventQueueCompleter[e.id] != null) {
       _eventQueueCompleter[e.id].complete(e.data);
       _eventQueue[e.id] = null;
       _eventQueueCompleter[e.id] = null;
-    }
+    }*/
   }
 
   _connectionEstablished(WsConnectionEstablished e) {
     log.fine("connected to ${url}");
+    closed = false;
     state = STATE_CONNECTED;
   }
 
   @deprecated
   Future trigger(String name, [Map<String, String> data = const {}]) {
-    WsData e = new WsData(name, data, connection.connectionId);
+    WsData e = new WsData(name, data, connectionId);
     return trackEvent(e);
   }
 
@@ -155,8 +180,9 @@ implements Bindable, WsEventDispatcher {
     return ac.future;
   }
 
+  bool eventQueueOut(WsData e) => triggerEvent(e) != null;
   WsEvent triggerEvent(WsData e) {
-    if(connection == null) throw new Exception('Could not trigger Event. No existing connection!');
+    if(mRelay == null) throw new Exception('Could not trigger Event. No existing connection!');
     if(_eventQueue[e.id] == null)
       _eventQueue[e.id] = e;
     else {
@@ -164,7 +190,7 @@ implements Bindable, WsEventDispatcher {
       log.fine(ex);
       throw ex;
     }
-    connection.trigger(e);
+    mRelay.sendEvent(e);
     return e;
   }
 
@@ -173,7 +199,7 @@ implements Bindable, WsEventDispatcher {
   }
 
 //Channel related
-  WsChannel subscribe(String name) => _subscribe(name, false);
+  WsChannel subscribe(String name, [bool private]) => _subscribe(name, private);
   WsChannel subscribePrivate(String name) => _subscribe(name, true);
   WsChannel _subscribe(String name, bool private) {
     if(_channels[name] != null) return _channels[name];
@@ -182,14 +208,24 @@ implements Bindable, WsEventDispatcher {
     return _channels[name] = new WsChannel(this, name, private);
   }
 
-  unsubscribe(String name) {
-    if(_channels[name] != null) {
-      log.finest("unsubscribing channel: '$name'");
-      _channels[name].destroy();
+  unsubscribe({ WsChannel channel, String name }) {
+    if(channel != null && name != null) throw new Exception('Specify either name or channel for unsubscription.');
+    WsChannel chan;
+    if(name != null) {
+      chan = _channels[name];
       _channels.remove(name);
+    } else if(channel != null) {
+      chan = channel;
+      // TODO: find a better solution
+      if(_channels.containsValue(chan)) _channels.forEach((k, v) {
+        if(v == chan) _channels.remove(k);
+      });
     }
+    chan.destroy();
   }
 
+  // TODO: fix usage
+  void dispatchChannelEvent(WsChannelEvent e) => _dispatchChannel(e);
   _dispatchChannel(WsChannelEvent e) {
     if(_channels[e.channel] != null) {
       log.finest("dispatch event to channel '${e.channel}': ${e.name}");
@@ -198,7 +234,9 @@ implements Bindable, WsEventDispatcher {
   }
 //End Channel related
 
-  bool get isOpened => state != STATE_CONNECTED;
+  // TODO: fix usage
+  bool get isOpened => state == STATE_CONNECTED;
+  bool get eventQueueIsBlocked => state != STATE_CONNECTED;
 
   @deprecated
   bool get connectionStale => isOpened;

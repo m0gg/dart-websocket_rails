@@ -1,12 +1,16 @@
 part of websocket_rails;
 
 abstract class WsEventDispatcher implements WsChannelManager, WsEventAsyncQueue {
+  WsEventRelay mRelay;
+
   void attachRelay(WsEventRelay);
-  void detachRelay(WsEventRelay);
+  void detachRelay();
   void handleEvent(WsEvent);
+
+  String get connectionId;
 }
 
-abstract class WsEventRelay implements EventQueue {
+abstract class WsEventRelay implements EventQueue<WsEvent> {
   Stream get onEvent;
   Stream get onOpen;
   Stream get onClose;

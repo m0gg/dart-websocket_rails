@@ -9,20 +9,16 @@ implements Bindable, Queueable<WsEvent> {
   bool private;
   String token;
 
-  WsEventGateway gw;
+  WsEventDispatcher gw;
   bool _subscriptionAcknowledged = false;
 
   WsChannel(this.gw, this.name, this.private) {
-    gw.onClose.listen((_) => this._subscriptionAcknowledged = false);
-    gw.onOpen.listen((_) {
-      if(!this._subscriptionAcknowledged) _subscribe();
-    });
-    if(gw.isOpened) _subscribe();
+    _subscribe();
   }
 
   Future _subscribe() {
     WsSubscribe e = (private ? new WsSubscribePrivate(name): new WsSubscribe(name));
-    return gw.trackEvent(e)
+    return gw.eventQueueAddTracked(e)
       ..then((_) {
       log.finest("acknowledged channel subscription for: '$name'");
       this._subscriptionAcknowledged = true;
@@ -30,7 +26,7 @@ implements Bindable, Queueable<WsEvent> {
   }
 
   destroy() {
-    gw.trackEvent(new WsUnsubscribe(name)).then((_) {
+    gw.eventQueueAddTracked(new WsUnsubscribe(name)).then((_) {
       eventControllers.forEach((k, StreamController v) => v.close());
     });
   }
@@ -51,8 +47,8 @@ implements Bindable, Queueable<WsEvent> {
     }
   }
 
-  bool get queueIsBlocked => !gw.isOpened || token == null;
+  bool get queueIsBlocked => !token == null;
   queueOut(WsEvent e) {
-    gw.triggerEvent(e);
+    gw.eventQueueAdd(e);
   }
 }
