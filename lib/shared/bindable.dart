@@ -7,6 +7,7 @@ abstract class Bindable {
   StreamSubscription bind(String eName, Function cb);
   StreamController _setupController(String eName);
   Stream getEventStream(String eName);
+  StreamController getEventController(String eName);
 
   // unbind via StreamSubscription.cancel()
 }
@@ -26,7 +27,6 @@ class DefaultBindable implements Bindable {
     return sC;
   }
 
-  Stream getEventStream(String eName) {
-    return _setupController(eName).stream;
-  }
+  StreamController getEventController(String eName) => eventControllers[eName];
+  Stream getEventStream(String eName) => _setupController(eName).stream;
 }

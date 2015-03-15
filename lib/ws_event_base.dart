@@ -12,7 +12,9 @@ abstract class WsEvent {
   static const String ID_IDX = 'id';
   static const String DATA_CID_IDX = 'connection_id';
 
-  WsEvent([this.attr, this.connectionId]);
+  WsEvent([this.attr, this.connectionId]) {
+    if(this.attr == null) this.attr = {};
+  }
 
   factory WsEvent.fromJson(List jsonData) {
     if(jsonData is List && jsonData.length > 0) {
@@ -51,7 +53,7 @@ class WsData extends WsEvent {
 
   String _name;
 
-  WsData(this._name, Map attr, [String _connectionId])
+  WsData(this._name, [Map attr, String _connectionId])
   : super(attr, _connectionId);
 
   factory WsData.switchByType(String name, Map attr, [String connectionId]) {

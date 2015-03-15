@@ -2,26 +2,26 @@ part of websocket_rails;
 
 class WsChannel
 extends Object
-with DefaultBindable, DefaultQueueable<WsEvent>
-implements Bindable, Queueable<WsEvent> {
+with DefaultBindable
+implements Bindable {
 
   String name;
   bool private;
   String token;
-
+  Future get onSubscribe => onSubscribeCompleter.future;
+  Completer onSubscribeCompleter = new Completer();
   WsEventDispatcher gw;
-  bool _subscriptionAcknowledged = false;
 
-  WsChannel(this.gw, this.name, this.private) {
-    _subscribe();
-  }
+  static Logger log = new Logger('WebSocketChannel');
 
-  Future _subscribe() {
+  WsChannel(this.gw, this.name, this.private);
+
+  Future subscribe() {
     WsSubscribe e = (private ? new WsSubscribePrivate(name): new WsSubscribe(name));
     return gw.eventQueueAddTracked(e)
       ..then((_) {
-      log.finest("acknowledged channel subscription for: '$name'");
-      this._subscriptionAcknowledged = true;
+      log.finest('acknowledged channel subscription for: "$name"');
+      onSubscribeCompleter.complete();
     });
   }
 
@@ -31,24 +31,18 @@ implements Bindable, Queueable<WsEvent> {
     });
   }
 
-  trigger(String eName, dynamic data) {
-    queueAdd(new WsData(eName, { 'channel': name, 'data': data, 'token': token }));
+  trigger(String eName, [dynamic data = const {}]) {
+    return gw.eventQueueAddTracked(new WsData('$name.$eName', { 'data': data, 'token': token }));
   }
 
   dispatch(WsEvent e) {
     if(e is WsToken) {
-      log.finest("received token for channel: '${name}'");
+      log.finest('received token for channel: "${name}"');
       token = e.token;
-      flushQueue();
     } else if(e is WsChannelEvent) {
       _setupController(e.name).add(e.data);
     } else {
       throw new Exception('Unexpected event dispatched to Channel "$name": $e');
     }
-  }
-
-  bool get queueIsBlocked => !token == null;
-  queueOut(WsEvent e) {
-    gw.eventQueueAdd(e);
   }
 }

@@ -8,11 +8,11 @@ implements WsEventRelay {
   WebSocket ws;
   String connectionId;
 
-  StreamController onOpenController = new StreamController.broadcast();
+  StreamController onOpenController              = new StreamController.broadcast();
   StreamController<CloseEvent> onCloseController = new StreamController.broadcast();
-  StreamController<WsEvent> onEventController = new StreamController.broadcast();
+  StreamController<WsEvent> onEventController    = new StreamController.broadcast();
 
-  Stream get onOpen => onOpenController.stream;
+  Stream get onOpen  => onOpenController.stream;
   Stream get onClose => onCloseController.stream;
   Stream get onEvent => onEventController.stream;
 
@@ -21,9 +21,10 @@ implements WsEventRelay {
 
   bool get isOpened => ws.readyState == WebSocket.OPEN;
 
+  static Logger log = new Logger('WebSocketConnection');
+
   WebSocketConnection(this.url) {
     onOpen.listen(connectionEstablished);
-    onEvent.listen(handleEvent);
     String protocol = (window.location.protocol == 'https:') ? 'wss:': 'ws:';
     this.ws = new WebSocket('$protocol//${this.url}');
     this.ws.onClose.listen(_onClose);
@@ -32,31 +33,31 @@ implements WsEventRelay {
   }
 
   close() {
-    ws.close();
-    onEventController.add(new WsConnectionClosed());
-    onEventController.done.then((_)=> onEventController.close);
-    onOpenController.done.then((_)=> onOpenController.close);
-    onCloseController.done.then((_) => onCloseController.close());
+    if(isOpened) ws.close();
   }
 
   _onClose(CloseEvent e) {
-    log.fine("disconnected from ${url}");
+    log.fine('Disconnected from ${url}');
     if(!e.wasClean) {
-      log.fine("websocket connection was shut down unexpectedly with code: ${e.code} reason: \"${e.reason}\"");
+      log.fine('Websocket connection was shut down unexpectedly with code: ${e.code} reason: "${e.reason}"');
     }
-    close();
+    onCloseController.add(e);
+    onOpenController.addError(e);
+    onEventController.done.then(close());
+    onOpenController.done.then(close());
+    onCloseController.done.then(close());
   }
 
   _onError(Event e) {
-    log.fine("websocket generated an error: ${e}");
-    close();
+    log.fine('Websocket generated an error: ${e.path}');
   }
 
   _onMessage(MessageEvent event) {
     List<WsEvent> messages = JSON.decode(event.data).map((_) => new WsEvent.fromJson(_));
     for(WsEvent e in messages) {
-      handleEvent(e);
-      onEventController.add(e);
+      if(e == null)
+        log.fine('Null Event: ${event.data}');
+      else handleEvent(e);
     }
   }
 
@@ -68,17 +69,16 @@ implements WsEventRelay {
   handleEvent(WsEvent e) {
     if(e is WsPing)
       pong();
-    else if(e is WsConnectionEstablished)
+    else if(e is WsConnectionEstablished) {
       onOpenController.add(e);
+    } else {
+      onEventController.add(e);
+    }
   }
 
   sendEvent(WsEvent e) {
-    // old version, is this really correct?
-    //if(this.connectionId != null) e.connectionId = this.connectionId;
-    if(this.connectionId == null) {
-      log.fine("Updated connectionId of Event");
-      e.connectionId = this.connectionId;
-    }
+    if(this.connectionId != null) e.connectionId = this.connectionId;
+    log.finest('Send Event: ${e.toJson()}');
     ws.sendString(e.toJson());
   }
 
@@ -88,7 +88,6 @@ implements WsEventRelay {
 
   bool get eventQueueIsBlocked => ws.readyState != WebSocket.OPEN;
   bool eventQueueOut(WsEvent e) {
-    // Send and pray!
     sendEvent(e);
     return true;
   }

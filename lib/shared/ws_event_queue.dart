@@ -1,42 +1,27 @@
 part of websocket_rails;
 
 abstract class EventQueue<T> {
-  List get eventQueue;
-
+  List<T> get eventQueue;
   bool get eventQueueIsBlocked;
 
-  bool eventQueueOut(T e);
-  void eventQueueAdd(T e) {
-    eventQueueIsBlocked ? eventQueue.add(e) : eventQueueOut(e);
-  }
-
-  bool eventQueueFlush() {
-    eventQueue.forEach((_) {
-      bool result = eventQueueOut(_);
-      if(result) eventQueue.remove(_);
-      else return false;
-    });
-    eventQueue.clear();
-    return true;
-  }
+  void eventQueueOut(T e);
+  void eventQueueAdd(T e);
+  void eventQueueFlush();
 }
 class EventQueueDefaults<T> implements EventQueue<T> {
   void eventQueueAdd(T e) {
     eventQueueIsBlocked ? eventQueue.add(e) : eventQueueOut(e);
   }
 
-  bool eventQueueFlush() {
+  void eventQueueFlush() {
     eventQueue.forEach((_) {
-      bool result = eventQueueOut(_);
-      if(result) eventQueue.remove(_);
-      else return false;
+      eventQueueOut(_);
     });
     eventQueue.clear();
-    return true;
   }
 }
 
-abstract class WsEventAsyncQueue implements EventQueue<WsData> {
+abstract class WsEventAsyncQueue implements EventQueue<WsData>  {
   Map<int, Completer> get eventQueueCompleter;
 
   Future eventQueueAddTracked(WsData e);
