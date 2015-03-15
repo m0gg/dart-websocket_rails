@@ -69,6 +69,8 @@ class WsData extends WsEvent {
           return new WsChannelEvent(name, attr, connectionId);
       }
     }
+
+    return new WsData(name, attr, connectionId);
   }
 
   dynamic get data => attr[WsEvent.DATA_IDX];
