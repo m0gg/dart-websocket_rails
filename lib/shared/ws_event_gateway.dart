@@ -24,7 +24,7 @@ abstract class WsEventRelay {
 }
 
 abstract class WsChannelManager {
-  Map<String, WsChannel> get channels;
+  Map<String, WsChannel> get mChannels;
 
   WsChannel subscribe(String name, [bool private]);
   WsChannel subscribePrivate(String name);

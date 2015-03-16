@@ -4,57 +4,57 @@ class WebSocketConnection
 extends Object
 with EventQueueDefaults<WsEvent>
 implements WsEventRelay {
-  String url;
-  WebSocket ws;
+  String mUrl;
+  WebSocket mWs;
   String connectionId;
 
-  StreamController onOpenController              = new StreamController();
-  StreamController<CloseEvent> onCloseController = new StreamController.broadcast();
-  StreamController<WsEvent> onEventController    = new StreamController.broadcast();
+  StreamController mOnOpenController              = new StreamController();
+  StreamController<CloseEvent> mOnCloseController = new StreamController.broadcast();
+  StreamController<WsEvent> mOnEventController    = new StreamController.broadcast();
 
-  Stream get onOpen  => onOpenController.stream;
-  Stream get onClose => onCloseController.stream;
-  Stream get onEvent => onEventController.stream;
+  Stream get onOpen  => mOnOpenController.stream;
+  Stream get onClose => mOnCloseController.stream;
+  Stream get onEvent => mOnEventController.stream;
 
-  List<WsEvent> eventQueue = [];
+  List<WsEvent> mEventQueue = [];
 
-  bool get isOpened => ws.readyState == WebSocket.OPEN;
+  bool get isOpened => mWs.readyState == WebSocket.OPEN;
 
-  static Logger log = new Logger('WebSocketConnection');
+  static Logger mLog = new Logger('WebSocketConnection');
 
-  WebSocketConnection(this.url) {
+  WebSocketConnection(this.mUrl) {
     String protocol = (window.location.protocol == 'https:') ? 'wss:': 'ws:';
-    this.ws = new WebSocket('$protocol//${this.url}');
-    this.ws.onClose.listen(_onClose);
-    this.ws.onError.listen(_onError);
-    this.ws.onMessage.listen(_onMessage);
+    this.mWs = new WebSocket('$protocol//${this.mUrl}');
+    this.mWs.onClose.listen(_onClose);
+    this.mWs.onError.listen(_onError);
+    this.mWs.onMessage.listen(_onMessage);
   }
 
   close() {
-    if(isOpened) ws.close();
+    if(isOpened) mWs.close();
   }
 
   _onClose(CloseEvent e) {
-    log.fine('Disconnected from ${url}');
+    mLog.fine('Disconnected from ${mUrl}');
     if(!e.wasClean) {
-      log.fine('Websocket connection was shut down unexpectedly with code: ${e.code} reason: "${e.reason}"');
+      mLog.fine('Websocket connection was shut down unexpectedly with code: ${e.code} reason: "${e.reason}"');
     }
-    onCloseController.add(e);
-    onOpenController.addError(e);
-    onEventController.done.then(close());
-    onOpenController.done.then(close());
-    onCloseController.done.then(close());
+    mOnCloseController.add(e);
+    mOnOpenController.addError(e);
+    mOnEventController.done.then(close());
+    mOnOpenController.done.then(close());
+    mOnCloseController.done.then(close());
   }
 
   _onError(Event e) {
-    log.fine('Websocket generated an error: ${e.path}');
+    mLog.fine('Websocket generated an error: ${e.path}');
   }
 
   _onMessage(MessageEvent event) {
     List<WsEvent> messages = JSON.decode(event.data).map((_) => new WsEvent.fromJson(_));
     for(WsEvent e in messages) {
       if(e == null)
-        log.fine('Null Event: ${event.data}');
+        mLog.fine('Null Event: ${event.data}');
       else handleEvent(e);
     }
   }
@@ -62,7 +62,7 @@ implements WsEventRelay {
   connectionEstablished(WsConnectionEstablished e) {
     connectionId = e.connectionId;
     eventQueueFlush();
-    onOpenController.add(e);
+    mOnOpenController.add(e);
   }
 
   handleEvent(WsEvent e) {
@@ -71,21 +71,21 @@ implements WsEventRelay {
     else if(e is WsConnectionEstablished) {
       connectionEstablished(e);
     } else {
-      onEventController.add(e);
+      mOnEventController.add(e);
     }
   }
 
   sendEvent(WsEvent e) {
     if(this.connectionId != null) e.connectionId = this.connectionId;
-    log.finest('Send Event: ${e.toJson()}');
-    ws.sendString(e.toJson());
+    mLog.finest('Send Event: ${e.toJson()}');
+    mWs.sendString(e.toJson());
   }
 
   pong() {
     eventQueueAdd(new WsPong(connectionId));
   }
 
-  bool get eventQueueIsBlocked => ws.readyState != WebSocket.OPEN;
+  bool get mEventQueueIsBlocked => mWs.readyState != WebSocket.OPEN;
   bool eventQueueOut(WsEvent e) {
     sendEvent(e);
     return true;

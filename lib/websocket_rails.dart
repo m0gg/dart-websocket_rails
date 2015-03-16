@@ -14,47 +14,47 @@ part 'ws_event_base.dart';
 part 'ws_channel.dart';
 part 'websocket_connection.dart';
 
-final Logger log = new Logger('WebSocketRails');
+final Logger mLog = new Logger('WebSocketRails');
 
 class WebSocketRails
 extends Object
 with DefaultBindable, EventQueueDefaults<WsData>, WsEventAsyncQueueDefaults
 implements Bindable, WsEventDispatcher {
 
-  String url;
-  int state;
-  Duration reconnectTimeout;
-  StreamSubscription relayOnEventSubscription;
+  String mUrl;
+  int mState;
+  Duration mReconnectTimeout;
+  StreamSubscription mRelayOnEventSubscription;
   WsEventRelay mRelay;
 
-  Map<String, WsChannel> channels = {};
-  List<WsData> eventQueue = [];
-  Map<int, Completer> eventQueueCompleter = {};
+  Map<String, WsChannel> mChannels = {};
+  List<WsData> mEventQueue = [];
+  Map<int, Completer> mEventQueueCompleter = {};
 
-  bool closed = false;
+  bool mClosed = false;
 
   static const int STATE_DISCONNECTED = 0;
   static const int STATE_CONNECTING = 1;
   static const int STATE_CONNECTED = 2;
 
-  WebSocketRails(this.url, { this.reconnectTimeout }) {
-    if(this.reconnectTimeout == null) this.reconnectTimeout = new Duration(seconds: 1);
+  WebSocketRails(this.mUrl, { this.mReconnectTimeout }) {
+    if(this.mReconnectTimeout == null) this.mReconnectTimeout = new Duration(seconds: 1);
   }
 
   Future connect() {
     Completer ac = new Completer();
-    if(mRelay == null || state == STATE_DISCONNECTED) {
-      state = STATE_CONNECTING;
-      WsEventRelay nRelay = new WebSocketConnection(this.url);
+    if(mRelay == null || mState == STATE_DISCONNECTED) {
+      mState = STATE_CONNECTING;
+      WsEventRelay nRelay = new WebSocketConnection(this.mUrl);
       nRelay.onOpen.first
         ..then((_) {
-        log.finest('connect() success');
+        mLog.finest('connect() success');
         attachRelay(nRelay);
         _connectionEstablished(_);
         ac.complete();
       })
         ..catchError((_) {
-        log.finest('connect() failed');
+        mLog.finest('connect() failed');
         ac.completeError(_);
       });
     } else {
@@ -82,18 +82,18 @@ implements Bindable, WsEventDispatcher {
           This point is either reached because of a bug
           or invalid handling of the library!
       ''');
-      log.fine(e);
+      mLog.fine(e);
       return;
     }
-    log.fine('Attaching WsEventRelay');
+    mLog.fine('Attaching WsEventRelay');
     mRelay = nRelay;
     nRelay.onClose.first.then((_) => handleDisconnect());
-    relayOnEventSubscription = nRelay.onEvent.listen(handleEvent);
+    mRelayOnEventSubscription = nRelay.onEvent.listen(handleEvent);
   }
 
   void detachRelay() {
-    if(relayOnEventSubscription != null)
-      relayOnEventSubscription.cancel();
+    if(mRelayOnEventSubscription != null)
+      mRelayOnEventSubscription.cancel();
     if(mRelay != null) {
       if(mRelay.isOpened) mRelay.close();
       mRelay = null;
@@ -101,12 +101,12 @@ implements Bindable, WsEventDispatcher {
   }
 
   disconnect() {
-    closed = true;
+    mClosed = true;
     detachRelay();
   }
 
   reconnect() {
-    log.finest('Attempt reconnect...');
+    mLog.finest('Attempt reconnect...');
     String oCid = connectionId;
     detachRelay();
 
@@ -115,12 +115,12 @@ implements Bindable, WsEventDispatcher {
       reconnectChannels();
       eventQueueFlush(oCid);
     })
-      ..catchError((_) => new Future.delayed(this.reconnectTimeout, reconnect));
+      ..catchError((_) => new Future.delayed(this.mReconnectTimeout, reconnect));
   }
 
   handleEvent(WsEvent e) {
     if(e is WsResult) {
-      log.finest('Received result: ${e.toJson()}}');
+      mLog.finest('Received result: ${e.toJson()}}');
       eventQueueEmitResponse(e);
     } else if(e is WsChannelEvent) {
       dispatchChannelEvent(e);
@@ -129,29 +129,29 @@ implements Bindable, WsEventDispatcher {
       if(target != null)
         target.add(e);
       else
-        log.fine('Received unhandled event: ${e.toJson()}}');
+        mLog.fine('Received unhandled event: ${e.toJson()}}');
     }
   }
 
   void eventQueueFlush([String oCid]) {
-    eventQueue.forEach((_) {
+    mEventQueue.forEach((_) {
       if(_ is !WsResult && (_.connectionId == oCid || _.connectionId == null))
         triggerEvent(_);
       eventQueueOut(_);
     });
-    eventQueue.clear();
+    mEventQueue.clear();
   }
 
   void handleDisconnect() {
-    state = STATE_DISCONNECTED;
+    mState = STATE_DISCONNECTED;
     detachRelay();
-    if(!closed) reconnect();
+    if(!mClosed) reconnect();
   }
 
   _connectionEstablished(WsConnectionEstablished e) {
-    log.finest('Connected to ${url}');
-    closed = false;
-    state = STATE_CONNECTED;
+    mLog.finest('Connected to ${mUrl}');
+    mClosed = false;
+    mState = STATE_CONNECTED;
     eventQueueFlush();
   }
 
@@ -170,41 +170,41 @@ implements Bindable, WsEventDispatcher {
   @deprecated('Use WsChannel subscribe(String name, [bool private = false])')
   WsChannel subscribePrivate(String name) => subscribe(name, true);
   WsChannel subscribe(String name, [bool private = false]) {
-    if(channels[name] != null) return channels[name];
+    if(mChannels[name] != null) return mChannels[name];
 
-    log.finest('Subscribing to channel: "$name", private: $private');
-    channels[name] = new WsChannel(this, name, private);
-    channels[name].subscribe();
-    return channels[name];
+    mLog.finest('Subscribing to channel: "$name", private: $private');
+    mChannels[name] = new WsChannel(this, name, private);
+    mChannels[name].subscribe();
+    return mChannels[name];
   }
 
   unsubscribe({ WsChannel channel, String name }) {
     if(channel != null && name != null) throw new Exception('Specify either name or channel for unsubscription.');
-    if(channel.gw != this) throw new Exception('Channel not related to this WebsocketRails instance.');
+    if(channel.mGw != this) throw new Exception('Channel not related to this WebsocketRails instance.');
     WsChannel chan;
     if(name != null) {
-      chan = channels[name];
-      channels.remove(name);
+      chan = mChannels[name];
+      mChannels.remove(name);
     } else if(channel != null) {
       chan = channel;
       // TODO: find a better solution
-      if(channels.containsValue(chan)) channels.forEach((k, v) {
-        if(v == chan) channels.remove(k);
+      if(mChannels.containsValue(chan)) mChannels.forEach((k, v) {
+        if(v == chan) mChannels.remove(k);
       });
     }
     chan.destroy();
   }
 
   void dispatchChannelEvent(WsChannelEvent e) {
-    if(channels[e.channel] != null) {
-      log.finest('dispatch event to channel "${e.channel}": ${e.name}');
-      channels[e.channel].dispatch(e);
+    if(mChannels[e.channel] != null) {
+      mLog.finest('dispatch event to channel "${e.channel}": ${e.name}');
+      mChannels[e.channel].dispatch(e);
     }
   }
 
-  bool get eventQueueIsBlocked => state != STATE_CONNECTED;
+  bool get mEventQueueIsBlocked => mState != STATE_CONNECTED;
 
   reconnectChannels() {
-    channels.forEach((String k, WsChannel v) => v.subscribe());
+    mChannels.forEach((String k, WsChannel v) => v.subscribe());
   }
 }

@@ -5,44 +5,44 @@ extends Object
 with DefaultBindable
 implements Bindable {
 
-  String name;
-  bool private;
-  String token;
-  Future get onSubscribe => onSubscribeCompleter.future;
-  Completer onSubscribeCompleter = new Completer();
-  WsEventDispatcher gw;
+  String mName;
+  bool mPrivate;
+  String mToken;
+  Future get onSubscribe => mOnSubscribeCompleter.future;
+  Completer mOnSubscribeCompleter = new Completer();
+  WsEventDispatcher mGw;
 
-  static Logger log = new Logger('WebSocketChannel');
+  static Logger mLog = new Logger('WebSocketChannel');
 
-  WsChannel(this.gw, this.name, this.private);
+  WsChannel(this.mGw, this.mName, this.mPrivate);
 
   Future subscribe() {
-    WsSubscribe e = (private ? new WsSubscribePrivate(name): new WsSubscribe(name));
-    return gw.eventQueueAddTracked(e)
+    WsSubscribe e = (mPrivate ? new WsSubscribePrivate(mName): new WsSubscribe(mName));
+    return mGw.eventQueueAddTracked(e)
       ..then((_) {
-      log.finest('acknowledged channel subscription for: "$name"');
-      onSubscribeCompleter.complete(this);
+      mLog.finest('acknowledged channel subscription for: "$mName"');
+      mOnSubscribeCompleter.complete(this);
     });
   }
 
   destroy() {
-    gw.eventQueueAddTracked(new WsUnsubscribe(name)).then((_) {
-      eventControllers.forEach((k, StreamController v) => v.close());
+    mGw.eventQueueAddTracked(new WsUnsubscribe(mName)).then((_) {
+      mEventControllers.forEach((k, StreamController v) => v.close());
     });
   }
 
   trigger(String eName, [dynamic data = const {}]) {
-    return gw.eventQueueAddTracked(new WsData('$name.$eName', { 'data': data, 'token': token }));
+    return mGw.eventQueueAddTracked(new WsData('$mName.$eName', { 'data': data, 'token': mToken }));
   }
 
   dispatch(WsEvent e) {
     if(e is WsToken) {
-      log.finest('received token for channel: "${name}"');
-      token = e.token;
+      mLog.finest('received token for channel: "${mName}"');
+      mToken = e.token;
     } else if(e is WsChannelEvent) {
       _setupController(e.name).add(e.data);
     } else {
-      throw new Exception('Unexpected event dispatched to Channel "$name": $e');
+      throw new Exception('Unexpected event dispatched to Channel "$mName": $e');
     }
   }
 }
