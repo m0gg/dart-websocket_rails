@@ -159,7 +159,7 @@ implements Bindable, WsEventDispatcher {
   Future trackEvent(WsData e) => eventQueueAddTracked(e);
 
   //compat
-  Future trigger(String name, [Map<String, String> data]) => eventQueueAddTracked(new WsData(name, data, connectionId));
+  Future trigger(String name, [Map<String, String> data]) => eventQueueAddTracked(new WsData(name, { 'data': data }, connectionId));
   Future triggerEvent(WsData e) => eventQueueAddTracked(e);
 
   eventQueueOut(WsData e) {
