@@ -77,7 +77,7 @@ The returned `Stream` of `WsChannel.getEventStream()` can be listened to multipl
 CHANGELOG
 =========
 
-29. Jan. 2015 - 0.1.0:
+26. Mar. 2015 - 0.2.0:
 
 ##### [6a92d1b](https://github.com/m0gg/dart-websocket_rails/commit/6a92d1b0f80b9691791cdc7b5a727b521cd3aa17) rework internals #####
 Reworked internal structure. Usage mostly keeps the same.
