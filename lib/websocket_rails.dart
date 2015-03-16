@@ -155,23 +155,19 @@ implements Bindable, WsEventDispatcher {
     eventQueueFlush();
   }
 
-  Future trigger(String name, [Map<String, String> data]) {
-    return eventQueueAddTracked(new WsData(name, data, connectionId));
-  }
-
-  @deprecated
+  @deprecated('Both trigger and triggerEvent are now trackable.')
   Future trackEvent(WsData e) => eventQueueAddTracked(e);
 
-  Future triggerEvent(WsData e) {
-    return eventQueueAddTracked(e);
-  }
+  //compat
+  Future trigger(String name, [Map<String, String> data]) => eventQueueAddTracked(new WsData(name, data, connectionId));
+  Future triggerEvent(WsData e) => eventQueueAddTracked(e);
 
   eventQueueOut(WsData e) {
     if(mRelay == null) throw new Exception('Could not trigger Event. No existing connection!');
     mRelay.sendEvent(e);
   }
 
-  @deprecated
+  @deprecated('Use WsChannel subscribe(String name, [bool private = false])')
   WsChannel subscribePrivate(String name) => subscribe(name, true);
   WsChannel subscribe(String name, [bool private = false]) {
     if(channels[name] != null) return channels[name];

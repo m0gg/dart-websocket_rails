@@ -1,6 +1,6 @@
 part of websocket_rails;
 
-abstract class WsEventDispatcher implements WsChannelManager {
+abstract class WsEventDispatcher implements WsChannelManager, WsEventAsyncQueue {
   WsEventRelay mRelay;
 
   void attachRelay(WsEventRelay);

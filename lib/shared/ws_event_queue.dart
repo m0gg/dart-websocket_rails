@@ -23,8 +23,14 @@ class EventQueueDefaults<T> implements EventQueue<T> {
   }
 }
 
-class WsEventAsyncQueueDefaults
-implements EventQueue<WsData> {
+abstract class WsEventAsyncQueue implements EventQueue<WsData>  {
+  Map<int, Completer> get eventQueueCompleter;
+
+  Future eventQueueAddTracked(WsData e);
+  void eventQueueEmitResponse(WsResult e);
+}
+
+class WsEventAsyncQueueDefaults implements WsEventAsyncQueue {
   Map<int, Completer> eventQueueCompleter = {};
 
   Future eventQueueAddTracked(WsData e) {
