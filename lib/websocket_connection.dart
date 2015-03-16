@@ -8,7 +8,7 @@ implements WsEventRelay {
   WebSocket ws;
   String connectionId;
 
-  StreamController onOpenController              = new StreamController.broadcast();
+  StreamController onOpenController              = new StreamController();
   StreamController<CloseEvent> onCloseController = new StreamController.broadcast();
   StreamController<WsEvent> onEventController    = new StreamController.broadcast();
 
@@ -16,15 +16,13 @@ implements WsEventRelay {
   Stream get onClose => onCloseController.stream;
   Stream get onEvent => onEventController.stream;
 
-  List<WsEvent> _eventQueue = [];
-  List get eventQueue => _eventQueue;
+  List<WsEvent> eventQueue = [];
 
   bool get isOpened => ws.readyState == WebSocket.OPEN;
 
   static Logger log = new Logger('WebSocketConnection');
 
   WebSocketConnection(this.url) {
-    onOpen.listen(connectionEstablished);
     String protocol = (window.location.protocol == 'https:') ? 'wss:': 'ws:';
     this.ws = new WebSocket('$protocol//${this.url}');
     this.ws.onClose.listen(_onClose);
@@ -64,13 +62,14 @@ implements WsEventRelay {
   connectionEstablished(WsConnectionEstablished e) {
     connectionId = e.connectionId;
     eventQueueFlush();
+    onOpenController.add(e);
   }
 
   handleEvent(WsEvent e) {
     if(e is WsPing)
       pong();
     else if(e is WsConnectionEstablished) {
-      onOpenController.add(e);
+      connectionEstablished(e);
     } else {
       onEventController.add(e);
     }
@@ -91,7 +90,4 @@ implements WsEventRelay {
     sendEvent(e);
     return true;
   }
-
-  @deprecated
-  trigger(WsEvent e) => eventQueueAdd(e);
 }

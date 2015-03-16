@@ -21,7 +21,7 @@ implements Bindable {
     return gw.eventQueueAddTracked(e)
       ..then((_) {
       log.finest('acknowledged channel subscription for: "$name"');
-      onSubscribeCompleter.complete();
+      onSubscribeCompleter.complete(this);
     });
   }
 

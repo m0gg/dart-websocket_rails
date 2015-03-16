@@ -9,6 +9,8 @@ abstract class EventQueue<T> {
   void eventQueueFlush();
 }
 class EventQueueDefaults<T> implements EventQueue<T> {
+  List<T> eventQueue = [];
+
   void eventQueueAdd(T e) {
     eventQueueIsBlocked ? eventQueue.add(e) : eventQueueOut(e);
   }
@@ -21,14 +23,10 @@ class EventQueueDefaults<T> implements EventQueue<T> {
   }
 }
 
-abstract class WsEventAsyncQueue implements EventQueue<WsData>  {
-  Map<int, Completer> get eventQueueCompleter;
+class WsEventAsyncQueueDefaults
+implements EventQueue<WsData> {
+  Map<int, Completer> eventQueueCompleter = {};
 
-  Future eventQueueAddTracked(WsData e);
-  void eventQueueEmitResponse(WsResult e);
-}
-
-class WsEventAsyncQueueDefaults implements WsEventAsyncQueue {
   Future eventQueueAddTracked(WsData e) {
     Completer ac = eventQueueCompleter[e.id] = new Completer();
     eventQueueAdd(e);
@@ -36,7 +34,9 @@ class WsEventAsyncQueueDefaults implements WsEventAsyncQueue {
   }
 
   void eventQueueEmitResponse(WsResult e) {
-    eventQueueCompleter[e.id].complete(e.data);
-    eventQueueCompleter.remove(e.id);
+    if(eventQueueCompleter[e.id] != null) {
+      eventQueueCompleter[e.id].complete(e.data);
+      eventQueueCompleter.remove(e.id);
+    }
   }
 }
