@@ -107,13 +107,12 @@ implements Bindable, WsEventDispatcher {
 
   reconnect() {
     mLog.finest('Attempt reconnect...');
-    String oCid = connectionId;
     detachRelay();
 
     connect()
       ..then((_) {
       reconnectChannels();
-      eventQueueFlush(oCid);
+      eventQueueFlush();
     })
       ..catchError((_) => new Future.delayed(this.mReconnectTimeout, reconnect));
   }
@@ -133,15 +132,6 @@ implements Bindable, WsEventDispatcher {
     }
   }
 
-  void eventQueueFlush([String oCid]) {
-    mEventQueue.forEach((_) {
-      if(_ is !WsResult && (_.connectionId == oCid || _.connectionId == null))
-        triggerEvent(_);
-      eventQueueOut(_);
-    });
-    mEventQueue.clear();
-  }
-
   void handleDisconnect() {
     mState = STATE_DISCONNECTED;
     detachRelay();
@@ -155,10 +145,9 @@ implements Bindable, WsEventDispatcher {
     eventQueueFlush();
   }
 
-  @deprecated('Both trigger and triggerEvent are now trackable.')
+  @Deprecated('Both trigger and triggerEvent are now trackable.')
   Future trackEvent(WsData e) => eventQueueAddTracked(e);
 
-  //compat
   Future trigger(String name, [Map<String, String> data]) => eventQueueAddTracked(new WsData(name, { 'data': data }, connectionId));
   Future triggerEvent(WsData e) => eventQueueAddTracked(e);
 
@@ -167,7 +156,7 @@ implements Bindable, WsEventDispatcher {
     mRelay.sendEvent(e);
   }
 
-  @deprecated('Use WsChannel subscribe(String name, [bool private = false])')
+  @Deprecated('Use WsChannel subscribe(String name, [bool private = false])')
   WsChannel subscribePrivate(String name) => subscribe(name, true);
   WsChannel subscribe(String name, [bool private = false]) {
     if(mChannels[name] != null) return mChannels[name];
@@ -197,7 +186,7 @@ implements Bindable, WsEventDispatcher {
 
   void dispatchChannelEvent(WsChannelEvent e) {
     if(mChannels[e.channel] != null) {
-      mLog.finest('dispatch event to channel "${e.channel}": ${e.name}');
+      mLog.finest('dispatch event to channel "${e.channel}": ${e.toJson()}');
       mChannels[e.channel].dispatch(e);
     }
   }

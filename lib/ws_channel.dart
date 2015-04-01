@@ -2,7 +2,7 @@ part of websocket_rails;
 
 class WsChannel
 extends Object
-with DefaultBindable
+with DefaultBindable, EventQueueDefaults<WsData>, WsEventAsyncQueueDefaults
 implements Bindable {
 
   String mName;
@@ -22,27 +22,36 @@ implements Bindable {
       ..then((_) {
       mLog.finest('acknowledged channel subscription for: "$mName"');
       mOnSubscribeCompleter.complete(this);
+    })
+    ..catchError((_) {
+       mLog.finest('channel subscription for "$mName" received error.');
     });
   }
 
   destroy() {
-    mGw.eventQueueAddTracked(new WsUnsubscribe(mName)).then((_) {
+    eventQueueAddTracked(new WsUnsubscribe(mName)).then((_) {
       mEventControllers.forEach((k, StreamController v) => v.close());
     });
   }
 
-  trigger(String eName, [dynamic data = const {}]) {
-    return mGw.eventQueueAddTracked(new WsData('$mName.$eName', { 'data': data, 'token': mToken }));
-  }
+  Future trigger(String eName, [Map<String, String> data]) => eventQueueAddTracked(new WsData('$mName.$eName', { 'channel': this.mName, 'data': data }));
 
   dispatch(WsEvent e) {
     if(e is WsToken) {
-      mLog.finest('received token for channel: "${mName}"');
       mToken = e.token;
+      mLog.finest('received token for channel: "${mName}" = "$mToken"');
+      eventQueueFlush();
     } else if(e is WsChannelEvent) {
       _setupController(e.name).add(e.data);
     } else {
       throw new Exception('Unexpected event dispatched to Channel "$mName": $e');
     }
+  }
+
+  bool get mEventQueueIsBlocked => this.mToken == null;
+  Map<int, Completer> get mEventQueueCompleter => mGw.mEventQueueCompleter;
+  void eventQueueOut(WsData e) {
+    e.attr['token'] = this.mToken;
+    mGw.eventQueueAdd(e);
   }
 }

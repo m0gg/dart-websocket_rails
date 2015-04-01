@@ -104,7 +104,7 @@ class WsToken extends WsChannelEvent {
   WsToken(Map attr, [String connectionId])
   : super(NAME, attr, connectionId);
 
-  String get token => attr[WsEvent.TOKEN_IDX];
+  String get token => attr[WsEvent.DATA_IDX][WsEvent.TOKEN_IDX];
   String get channel => attr[WsEvent.CHANNEL_IDX];
   String get name => NAME;
 }

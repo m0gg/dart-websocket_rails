@@ -34,14 +34,20 @@ class WsEventAsyncQueueDefaults implements WsEventAsyncQueue {
   Map<int, Completer> mEventQueueCompleter = {};
 
   Future eventQueueAddTracked(WsData e) {
-    Completer ac = mEventQueueCompleter[e.id] = new Completer();
-    eventQueueAdd(e);
-    return ac.future;
+    if(mEventQueueCompleter[e.id] is !Completer) {
+      Completer ac = mEventQueueCompleter[e.id] = new Completer();
+      eventQueueAdd(e);
+      return ac.future;
+    } else
+      throw new Exception('Double id registered.');
   }
 
   void eventQueueEmitResponse(WsResult e) {
     if(mEventQueueCompleter[e.id] != null) {
-      mEventQueueCompleter[e.id].complete(e.data);
+      if(e.success)
+        mEventQueueCompleter[e.id].complete(e.data);
+      else
+        mEventQueueCompleter[e.id].completeError(e.data);
       mEventQueueCompleter.remove(e.id);
     }
   }
